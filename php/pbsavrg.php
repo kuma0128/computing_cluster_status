@@ -3,7 +3,7 @@
   $last = $_POST['last'];
   $cluster = $_POST['clus'];
   $dsn = "mysql:dbname=XXXX;host=localhost";
-  $user = "guest";
+  $user = "XXXX";
   $password = "";
   try{
   $dbh = new PDO($dsn, $user, $password);
@@ -13,7 +13,7 @@
   }
 
   $table = "XXXX";
-  $sql = $dbh->prepare("select time,$cluster from $table where time between '$fst' and '$last'");
+  $sql = $dbh->prepare("SELECT time,$cluster FROM $table WHERE time BETWEEN '$fst' AND '$last'");
   $sql->execute();
   $ary1 = array();
   while($row = $sql->fetch(PDO::FETCH_ASSOC)){
@@ -26,4 +26,3 @@
   echo json_encode($ary1);
   $dbh = null;
   $sql = null;
-?>

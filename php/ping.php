@@ -10,4 +10,3 @@
               ];
   echo json_encode($ary_ping);
   exit;
-?>

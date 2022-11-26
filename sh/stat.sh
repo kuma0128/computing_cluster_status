@@ -2,7 +2,11 @@
 # 各ユーザーの使用率を取得
 # 毎日3時に1度実行される。使用率の統計量は月初めにリセットされる。
 
-DOWN="yoyogi02"
+# downノードを取得
+db="XXXX"
+table="XXXX"
+user="XXXX"
+DOWN=$(mysql -u $user $db -N -e "${sql}")
 
 stat=`mktemp`
 trap "rm $stat" 0 1 2 3 15 
@@ -27,7 +31,7 @@ done
 wait
 
 
-Insert="Insert into $db.$table (User,time) values"
+Insert="INSERT INTO $db.$table (User,time) VALUES"
 n=$(( ${#users[*]} - 1 ))
 for i in `seq 0 $n`
 do
@@ -36,5 +40,5 @@ do
 done
 
 Insert=`echo $Insert|rev|cut -c 2- |rev`
-Insert+=" on duplicate key update user = values(user), time = values(time);"
+Insert+=" ON DUPLICATE KEY UPDATE user = VALUES(user), time = VALUES(time);"
 result=$(mysql -u $user --password=$pass $db -N -e "$Insert")
