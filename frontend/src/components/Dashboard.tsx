@@ -6,7 +6,7 @@ import { generateAllMockData } from '../utils/mockData';
 import type { MetricsResponse, NodeStatusResponse, DiskUsage } from '../types';
 import './Dashboard.css';
 
-type TimeRange = '1h' | '6h' | '24h';
+type TimeRange = '1h' | '6h' | '24h' | '7d' | 'custom';
 type RefreshInterval = 5 | 30 | 60;
 type NodeFilter = 'all' | 'up' | 'down';
 type DiskTab = 'total' | 'top5' | 'inode';
@@ -18,13 +18,18 @@ export function Dashboard() {
   // State
   const [selectedCluster, setSelectedCluster] = useState<string>('asuka');
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [showCustomRange, setShowCustomRange] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState<RefreshInterval>(60);
+  const [countdown, setCountdown] = useState(60);
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [nodeStatus, setNodeStatus] = useState<NodeStatusResponse | null>(null);
   const [diskData, setDiskData] = useState<DiskUsage[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [serverTime, setServerTime] = useState<Date | null>(null);
   const [nodeFilter, setNodeFilter] = useState<NodeFilter>('all');
   const [nodeSearch, setNodeSearch] = useState('');
   const [diskTab, setDiskTab] = useState<DiskTab>('total');
@@ -38,7 +43,7 @@ export function Dashboard() {
   // Fetch data
   const fetchData = async () => {
     try {
-      if (!loading) setLoading(true);
+      setLoading(true);
 
       if (USE_MOCK_DATA) {
         // Use mock data for development
@@ -47,6 +52,7 @@ export function Dashboard() {
         setMetrics(mockData.metrics);
         setNodeStatus(mockData.nodeStatus);
         setDiskData(mockData.diskData);
+        setServerTime(new Date()); // Mock server time
       } else {
         // Use real API
         const api = apiRef.current;
@@ -59,9 +65,16 @@ export function Dashboard() {
         setMetrics(metricsData);
         setNodeStatus(nodesData);
         setDiskData(disk);
+
+        // Get server time from response timestamp
+        if (metricsData.timestamp) {
+          setServerTime(new Date(metricsData.timestamp));
+        }
       }
 
-      setLastUpdate(new Date());
+      const now = new Date();
+      setLastUpdate(now);
+      setCountdown(refreshInterval);
     } catch (err) {
       console.error('Failed to fetch data:', err);
 
@@ -80,14 +93,36 @@ export function Dashboard() {
 
   useEffect(() => {
     fetchData();
-  }, [selectedCluster]);
+  }, [selectedCluster, timeRange]);
 
+  // Auto-refresh timer
   useEffect(() => {
     if (!autoRefresh) return;
 
     const interval = setInterval(fetchData, refreshInterval * 1000);
     return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, selectedCluster]);
+  }, [autoRefresh, refreshInterval, selectedCluster, timeRange]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          return refreshInterval;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [autoRefresh, refreshInterval]);
+
+  // Reset countdown when interval changes
+  useEffect(() => {
+    setCountdown(refreshInterval);
+  }, [refreshInterval]);
 
   // Computed values
   const allNodes = useMemo(() => {
@@ -237,6 +272,16 @@ export function Dashboard() {
     return '';
   };
 
+  const getTimeDrift = (): number | null => {
+    if (!serverTime) return null;
+    const clientTime = new Date();
+    const drift = Math.abs(clientTime.getTime() - serverTime.getTime()) / 1000;
+    return drift;
+  };
+
+  const timeDrift = getTimeDrift();
+  const hasTimeDrift = timeDrift !== null && timeDrift > 60;
+
   if (loading && !metrics) {
     return (
       <div className="loading-overlay">
@@ -247,6 +292,43 @@ export function Dashboard() {
 
   return (
     <div className="dashboard">
+      {/* Custom Range Modal */}
+      {showCustomRange && (
+        <div className="modal-overlay" onClick={() => setShowCustomRange(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Custom Time Range</h3>
+            <div className="custom-range-form">
+              <div className="form-group">
+                <label>Start Date:</label>
+                <input
+                  type="datetime-local"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label>End Date:</label>
+                <input
+                  type="datetime-local"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </div>
+              <div className="modal-actions">
+                <button onClick={() => {
+                  setShowCustomRange(false);
+                  fetchData();
+                }}>Apply</button>
+                <button onClick={() => {
+                  setShowCustomRange(false);
+                  setTimeRange('24h');
+                }}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fixed Header */}
       <header className="dashboard-header">
         <div className="header-content">
@@ -273,11 +355,19 @@ export function Dashboard() {
               <select
                 className="select-input"
                 value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+                onChange={(e) => {
+                  const value = e.target.value as TimeRange;
+                  setTimeRange(value);
+                  if (value === 'custom') {
+                    setShowCustomRange(true);
+                  }
+                }}
               >
                 <option value="1h">1 hour</option>
                 <option value="6h">6 hours</option>
                 <option value="24h">24 hours</option>
+                <option value="7d">7 days</option>
+                <option value="custom">Custom...</option>
               </select>
             </div>
 
@@ -304,8 +394,22 @@ export function Dashboard() {
           </div>
 
           <div className="header-right">
-            {autoRefresh && loading && <div className="spinner"></div>}
-            <span className="last-update">Updated: {formatTime(lastUpdate)}</span>
+            <div className="update-info">
+              {autoRefresh && loading && <div className="spinner"></div>}
+              <div className="last-update-wrapper">
+                <span className="last-update">
+                  Updated: {formatTime(lastUpdate)}
+                  {hasTimeDrift && (
+                    <span className="time-drift-warning" title={`Clock drift detected: ${timeDrift?.toFixed(0)}s`}>
+                      {' '}⚠️
+                    </span>
+                  )}
+                </span>
+                {autoRefresh && !loading && (
+                  <span className="countdown">Next: {countdown}s</span>
+                )}
+              </div>
+            </div>
             <div className="user-menu">
               {isAuthenticated ? (
                 <button onClick={logout}>Logout</button>
