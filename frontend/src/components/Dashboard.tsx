@@ -1,44 +1,129 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ClusterAPI } from '../api/ClusterAPI';
 import { useAuth } from '../contexts/AuthContext';
-import { generateAllMockData } from '../utils/mockData';
-import type { MetricsResponse, NodeStatusResponse, DiskUsage } from '../types';
+import { generateAllMockData, generateAllClustersOverview } from '../utils/mockData';
+import type { MetricsResponse, NodeStatusResponse, DiskUsage, NodeDetails, TimeSeriesPoint, MetricStats, ClusterSummary } from '../types';
 import './Dashboard.css';
 
 type TimeRange = '1h' | '6h' | '24h' | '7d' | 'custom';
 type RefreshInterval = 5 | 30 | 60;
-type NodeFilter = 'all' | 'up' | 'down';
+type NodeFilter = 'all' | 'up' | 'down' | 'high_load' | 'high_disk';
 type DiskTab = 'total' | 'top5' | 'inode';
 
 // Set to true to use mock data for development
 const USE_MOCK_DATA = true;
 
+// Sparkline component
+function Sparkline({ data, className = '' }: { data: TimeSeriesPoint[]; className?: string }) {
+  if (!data || data.length === 0) return null;
+
+  const width = 80;
+  const height = 30;
+  const padding = 2;
+
+  const values = data.map(d => d.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const points = data.map((d, i) => {
+    const x = padding + (i / (data.length - 1)) * (width - 2 * padding);
+    const y = height - padding - ((d.value - min) / range) * (height - 2 * padding);
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <svg width={width} height={height} className={`sparkline ${className}`}>
+      <polyline
+        points={points}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+// Calculate metric statistics
+function calculateStats(data: TimeSeriesPoint[]): MetricStats {
+  if (!data || data.length === 0) {
+    return { min: 0, max: 0, avg: 0, p95: 0, change_percent: 0 };
+  }
+
+  const values = data.map(d => d.value);
+  const sorted = [...values].sort((a, b) => a - b);
+
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  const p95Index = Math.floor(sorted.length * 0.95);
+  const p95 = sorted[p95Index];
+
+  // Calculate change: compare last value with first value
+  const firstValue = values[0];
+  const lastValue = values[values.length - 1];
+  const change_percent = firstValue !== 0 ? ((lastValue - firstValue) / firstValue) * 100 : 0;
+
+  return { min, max, avg, p95, change_percent };
+}
+
 export function Dashboard() {
-  // State
-  const [selectedCluster, setSelectedCluster] = useState<string>('asuka');
-  const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Initialize state from URL params
+  const [selectedCluster, setSelectedCluster] = useState<string>(
+    searchParams.get('cluster') || 'asuka'
+  );
+  const [timeRange, setTimeRange] = useState<TimeRange>(
+    (searchParams.get('period') as TimeRange) || '24h'
+  );
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [showCustomRange, setShowCustomRange] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState<RefreshInterval>(60);
-  const [countdown, setCountdown] = useState(60);
+  const [autoRefresh, setAutoRefresh] = useState(
+    searchParams.get('autoRefresh') !== 'false'
+  );
+  const [refreshInterval, setRefreshInterval] = useState<RefreshInterval>(
+    parseInt(searchParams.get('refreshInterval') || '60') as RefreshInterval
+  );
+  const [countdown, setCountdown] = useState<number>(refreshInterval);
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [nodeStatus, setNodeStatus] = useState<NodeStatusResponse | null>(null);
   const [diskData, setDiskData] = useState<DiskUsage[]>([]);
+  const [clusterSummaries, setClusterSummaries] = useState<ClusterSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [serverTime, setServerTime] = useState<Date | null>(null);
-  const [nodeFilter, setNodeFilter] = useState<NodeFilter>('all');
+  const [nodeFilters, setNodeFilters] = useState<NodeFilter[]>(
+    searchParams.get('filters')?.split(',') as NodeFilter[] || ['all']
+  );
   const [nodeSearch, setNodeSearch] = useState('');
-  const [diskTab, setDiskTab] = useState<DiskTab>('total');
+  const [diskTab, setDiskTab] = useState<DiskTab>(
+    (searchParams.get('tab') as DiskTab) || 'total'
+  );
   const [sortColumn, setSortColumn] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const { isAuthenticated, logout } = useAuth();
   const apiRef = useRef(new ClusterAPI({ baseUrl: '/api' }));
   const nodeTableRef = useRef<HTMLDivElement>(null);
+
+  // Update URL when state changes
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set('cluster', selectedCluster);
+    params.set('period', timeRange);
+    if (!autoRefresh) params.set('autoRefresh', 'false');
+    if (refreshInterval !== 60) params.set('refreshInterval', refreshInterval.toString());
+    if (nodeFilters.length > 0 && nodeFilters[0] !== 'all') {
+      params.set('filters', nodeFilters.join(','));
+    }
+    if (diskTab !== 'total') params.set('tab', diskTab);
+
+    setSearchParams(params, { replace: true });
+  }, [selectedCluster, timeRange, autoRefresh, refreshInterval, nodeFilters, diskTab, setSearchParams]);
 
   // Fetch data
   const fetchData = async () => {
@@ -49,9 +134,11 @@ export function Dashboard() {
         // Use mock data for development
         await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
         const mockData = generateAllMockData(selectedCluster);
+        const allClusters = generateAllClustersOverview();
         setMetrics(mockData.metrics);
         setNodeStatus(mockData.nodeStatus);
         setDiskData(mockData.diskData);
+        setClusterSummaries(allClusters);
         setServerTime(new Date()); // Mock server time
       } else {
         // Use real API
@@ -133,29 +220,19 @@ export function Dashboard() {
 
     if (hasDetails) {
       const statusWithDetails = nodeStatus as NodeStatusResponse & {
-        aliveDetails: Array<{ name: string; last_seen: string }>;
-        downDetails: Array<{ name: string; last_seen: string }>;
+        aliveDetails: NodeDetails[];
+        downDetails: NodeDetails[];
       };
 
-      const alive = statusWithDetails.aliveDetails.map(node => ({
-        name: node.name,
-        status: 'up' as const,
-        last_seen: node.last_seen
-      }));
-      const down = statusWithDetails.downDetails.map(node => ({
-        name: node.name,
-        status: 'down' as const,
-        last_seen: node.last_seen
-      }));
-      return [...alive, ...down];
+      return [...statusWithDetails.aliveDetails, ...statusWithDetails.downDetails];
     } else {
       // Fallback for API data without details
-      const alive = nodeStatus.alive.map(name => ({
+      const alive: NodeDetails[] = nodeStatus.alive.map(name => ({
         name,
         status: 'up' as const,
         last_seen: 'N/A'
       }));
-      const down = nodeStatus.down.map(name => ({
+      const down: NodeDetails[] = nodeStatus.down.map(name => ({
         name,
         status: 'down' as const,
         last_seen: 'N/A'
@@ -181,11 +258,24 @@ export function Dashboard() {
   const filteredNodes = useMemo(() => {
     let nodes = allNodes;
 
-    // Apply filter
-    if (nodeFilter === 'up') {
-      nodes = nodes.filter(n => n.status === 'up');
-    } else if (nodeFilter === 'down') {
-      nodes = nodes.filter(n => n.status === 'down');
+    // Apply filters (AND logic for multiple filters)
+    if (nodeFilters.length > 0 && nodeFilters[0] !== 'all') {
+      nodeFilters.forEach(filter => {
+        switch (filter) {
+          case 'up':
+            nodes = nodes.filter(n => n.status === 'up');
+            break;
+          case 'down':
+            nodes = nodes.filter(n => n.status === 'down');
+            break;
+          case 'high_load':
+            nodes = nodes.filter(n => n.load_average && n.load_average > 100);
+            break;
+          case 'high_disk':
+            nodes = nodes.filter(n => n.disk_usage && n.disk_usage > 80);
+            break;
+        }
+      });
     }
 
     // Apply search
@@ -197,8 +287,8 @@ export function Dashboard() {
 
     // Apply sort
     nodes = [...nodes].sort((a, b) => {
-      let aVal: any = a[sortColumn as keyof typeof a];
-      let bVal: any = b[sortColumn as keyof typeof b];
+      let aVal: any = a[sortColumn as keyof NodeDetails];
+      let bVal: any = b[sortColumn as keyof NodeDetails];
 
       if (aVal === undefined) aVal = '';
       if (bVal === undefined) bVal = '';
@@ -212,13 +302,24 @@ export function Dashboard() {
     });
 
     return nodes;
-  }, [allNodes, nodeFilter, nodeSearch, sortColumn, sortDirection]);
+  }, [allNodes, nodeFilters, nodeSearch, sortColumn, sortDirection]);
 
   const topDiskUsage = useMemo(() => {
     return [...diskData]
       .sort((a, b) => b.usage_percent - a.usage_percent)
       .slice(0, 5);
   }, [diskData]);
+
+  // Count nodes matching each filter
+  const filterCounts = useMemo(() => {
+    return {
+      all: allNodes.length,
+      up: allNodes.filter(n => n.status === 'up').length,
+      down: allNodes.filter(n => n.status === 'down').length,
+      high_load: allNodes.filter(n => n.load_average && n.load_average > 100).length,
+      high_disk: allNodes.filter(n => n.disk_usage && n.disk_usage > 80).length,
+    };
+  }, [allNodes]);
 
   // Handlers
   const handleSort = (column: string) => {
@@ -230,8 +331,26 @@ export function Dashboard() {
     }
   };
 
+  const toggleFilter = (filter: NodeFilter) => {
+    if (filter === 'all') {
+      setNodeFilters(['all']);
+    } else {
+      setNodeFilters(prev => {
+        const filtered = prev.filter(f => f !== 'all');
+        if (filtered.includes(filter)) {
+          // Remove filter
+          const newFilters = filtered.filter(f => f !== filter);
+          return newFilters.length === 0 ? ['all'] : newFilters;
+        } else {
+          // Add filter
+          return [...filtered, filter];
+        }
+      });
+    }
+  };
+
   const scrollToNodes = (filter: NodeFilter) => {
-    setNodeFilter(filter);
+    setNodeFilters([filter]);
     // Use requestAnimationFrame to ensure DOM is updated
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -245,10 +364,13 @@ export function Dashboard() {
   };
 
   const exportCSV = () => {
-    const headers = ['Name', 'Status', 'Last Heartbeat'];
+    const headers = ['Name', 'Status', 'CPU %', 'Load %', 'Disk %', 'Last Heartbeat'];
     const rows = filteredNodes.map(n => [
       n.name,
       n.status,
+      n.cpu_usage?.toFixed(1) || 'N/A',
+      n.load_average?.toFixed(1) || 'N/A',
+      n.disk_usage?.toFixed(1) || 'N/A',
       n.last_seen || 'N/A',
     ]);
 
@@ -443,6 +565,63 @@ export function Dashboard() {
           </div>
         )}
 
+        {/* All Clusters Overview */}
+        <section className="clusters-overview">
+          <h2 className="section-title">All Clusters Status</h2>
+          <div className="clusters-grid">
+            {clusterSummaries.map((cluster) => {
+              const availabilityPercent = cluster.totalNodes > 0
+                ? (cluster.availableNodes / cluster.totalNodes) * 100
+                : 0;
+              const isCurrentCluster = cluster.name === selectedCluster;
+
+              return (
+                <div
+                  key={cluster.name}
+                  className={`cluster-card ${isCurrentCluster ? 'active' : ''}`}
+                  onClick={() => setSelectedCluster(cluster.name)}
+                >
+                  <div className="cluster-header">
+                    <h3 className="cluster-name">{cluster.name.toUpperCase()}</h3>
+                    {isCurrentCluster && <span className="current-badge">Current</span>}
+                  </div>
+
+                  <div className="cluster-stats">
+                    <div className="stat-row">
+                      <span className="stat-label">Total Nodes</span>
+                      <span className="stat-value">{cluster.totalNodes}</span>
+                    </div>
+                    <div className="stat-row">
+                      <span className="stat-label">Alive</span>
+                      <span className="stat-value stat-success">{cluster.aliveNodes}</span>
+                    </div>
+                    <div className="stat-row">
+                      <span className="stat-label">Down</span>
+                      <span className="stat-value stat-error">{cluster.downNodes}</span>
+                    </div>
+                    <div className="stat-row highlight">
+                      <span className="stat-label">Available</span>
+                      <span className="stat-value stat-primary">{cluster.availableNodes}</span>
+                    </div>
+                  </div>
+
+                  <div className="availability-bar">
+                    <div className="availability-label">
+                      Availability: {availabilityPercent.toFixed(0)}%
+                    </div>
+                    <div className="progress-bar">
+                      <div
+                        className={`progress-fill ${availabilityPercent >= 50 ? '' : availabilityPercent >= 25 ? 'medium' : 'high'}`}
+                        style={{ width: `${Math.min(availabilityPercent, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
         {/* Health Overview Cards */}
         <section className="health-overview">
           <div
@@ -482,14 +661,17 @@ export function Dashboard() {
               <span className="health-badge error">DOWN</span>
             </div>
             <div className="health-value">{healthStatus.downCount}</div>
-            <p className="health-description">Needs attention</p>
+            <p className="health-description">
+              {healthStatus.downCount === 0 ? 'All systems operational 🎉' : 'Needs attention'}
+            </p>
           </div>
         </section>
 
-        {/* Metrics Cards */}
+        {/* Metrics Cards with Sparklines */}
         <section className="metrics-section">
           <h2 className="section-title">Key Metrics</h2>
           <div className="metrics-grid">
+            {/* CPU Usage */}
             <div className="metric-card">
               <div className="metric-header">
                 <span className="metric-title">CPU Usage</span>
@@ -500,11 +682,28 @@ export function Dashboard() {
                   ?
                 </span>
               </div>
-              <div className="metric-value">
-                {metrics?.cpu_usage[0]?.value.toFixed(1) ?? 'N/A'}%
+              <div className="metric-value-row">
+                <div className="metric-value">
+                  {metrics?.cpu_usage[0]?.value.toFixed(1) ?? 'N/A'}%
+                </div>
+                {metrics?.history?.cpu_usage && (() => {
+                  const stats = calculateStats(metrics.history.cpu_usage);
+                  return (
+                    <div className={`metric-change ${stats.change_percent >= 0 ? 'positive' : 'negative'}`} title={`Min: ${stats.min.toFixed(1)}% | Max: ${stats.max.toFixed(1)}% | Avg: ${stats.avg.toFixed(1)}% | P95: ${stats.p95.toFixed(1)}%`}>
+                      {stats.change_percent >= 0 ? '▲' : '▼'}
+                      {Math.abs(stats.change_percent).toFixed(1)}%
+                    </div>
+                  );
+                })()}
               </div>
+              {metrics?.history?.cpu_usage && (
+                <div className="metric-sparkline-container">
+                  <Sparkline data={metrics.history.cpu_usage} />
+                </div>
+              )}
             </div>
 
+            {/* Load Average */}
             <div className="metric-card">
               <div className="metric-header">
                 <span className="metric-title">Load Average</span>
@@ -515,11 +714,28 @@ export function Dashboard() {
                   ?
                 </span>
               </div>
-              <div className="metric-value">
-                {metrics?.load_average[0]?.value.toFixed(2) ?? 'N/A'}
+              <div className="metric-value-row">
+                <div className="metric-value">
+                  {metrics?.load_average[0]?.value.toFixed(2) ?? 'N/A'}
+                </div>
+                {metrics?.history?.load_average && (() => {
+                  const stats = calculateStats(metrics.history.load_average);
+                  return (
+                    <div className={`metric-change ${stats.change_percent >= 0 ? 'positive' : 'negative'}`} title={`Min: ${stats.min.toFixed(2)} | Max: ${stats.max.toFixed(2)} | Avg: ${stats.avg.toFixed(2)} | P95: ${stats.p95.toFixed(2)}`}>
+                      {stats.change_percent >= 0 ? '▲' : '▼'}
+                      {Math.abs(stats.change_percent).toFixed(1)}%
+                    </div>
+                  );
+                })()}
               </div>
+              {metrics?.history?.load_average && (
+                <div className="metric-sparkline-container">
+                  <Sparkline data={metrics.history.load_average} />
+                </div>
+              )}
             </div>
 
+            {/* PBS Queue */}
             <div className="metric-card">
               <div className="metric-header">
                 <span className="metric-title">PBS Queue</span>
@@ -530,9 +746,25 @@ export function Dashboard() {
                   ?
                 </span>
               </div>
-              <div className="metric-value">
-                {metrics?.pbs_usage[0]?.value.toFixed(1) ?? 'N/A'}%
+              <div className="metric-value-row">
+                <div className="metric-value">
+                  {metrics?.pbs_usage[0]?.value.toFixed(1) ?? 'N/A'}%
+                </div>
+                {metrics?.history?.pbs_usage && (() => {
+                  const stats = calculateStats(metrics.history.pbs_usage);
+                  return (
+                    <div className={`metric-change ${stats.change_percent >= 0 ? 'positive' : 'negative'}`} title={`Min: ${stats.min.toFixed(1)}% | Max: ${stats.max.toFixed(1)}% | Avg: ${stats.avg.toFixed(1)}% | P95: ${stats.p95.toFixed(1)}%`}>
+                      {stats.change_percent >= 0 ? '▲' : '▼'}
+                      {Math.abs(stats.change_percent).toFixed(1)}%
+                    </div>
+                  );
+                })()}
               </div>
+              {metrics?.history?.pbs_usage && (
+                <div className="metric-sparkline-container">
+                  <Sparkline data={metrics.history.pbs_usage} />
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -636,22 +868,34 @@ export function Dashboard() {
 
             <div className="filter-buttons">
               <button
-                className={`filter-button ${nodeFilter === 'all' ? 'active' : ''}`}
-                onClick={() => setNodeFilter('all')}
+                className={`filter-button ${nodeFilters.includes('all') ? 'active' : ''}`}
+                onClick={() => toggleFilter('all')}
               >
-                All ({allNodes.length})
+                All ({filterCounts.all})
               </button>
               <button
-                className={`filter-button ${nodeFilter === 'up' ? 'active' : ''}`}
-                onClick={() => setNodeFilter('up')}
+                className={`filter-button ${nodeFilters.includes('up') ? 'active' : ''}`}
+                onClick={() => toggleFilter('up')}
               >
-                Up ({healthStatus.aliveCount})
+                Up ({filterCounts.up})
               </button>
               <button
-                className={`filter-button ${nodeFilter === 'down' ? 'active' : ''}`}
-                onClick={() => setNodeFilter('down')}
+                className={`filter-button ${nodeFilters.includes('down') ? 'active' : ''}`}
+                onClick={() => toggleFilter('down')}
               >
-                Down ({healthStatus.downCount})
+                Down ({filterCounts.down})
+              </button>
+              <button
+                className={`filter-button ${nodeFilters.includes('high_load') ? 'active' : ''}`}
+                onClick={() => toggleFilter('high_load')}
+              >
+                High Load &gt;100% ({filterCounts.high_load})
+              </button>
+              <button
+                className={`filter-button ${nodeFilters.includes('high_disk') ? 'active' : ''}`}
+                onClick={() => toggleFilter('high_disk')}
+              >
+                High Disk &gt;80% ({filterCounts.high_disk})
               </button>
             </div>
 
@@ -671,6 +915,15 @@ export function Dashboard() {
                     <th onClick={() => handleSort('status')}>
                       Status {sortColumn === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
+                    <th onClick={() => handleSort('cpu_usage')}>
+                      CPU % {sortColumn === 'cpu_usage' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th onClick={() => handleSort('load_average')}>
+                      Load % {sortColumn === 'load_average' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th onClick={() => handleSort('disk_usage')}>
+                      Disk % {sortColumn === 'disk_usage' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
                     <th onClick={() => handleSort('last_seen')}>
                       Last Heartbeat {sortColumn === 'last_seen' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
@@ -684,6 +937,15 @@ export function Dashboard() {
                         <span className={`status-badge ${node.status}`}>
                           {node.status}
                         </span>
+                      </td>
+                      <td className={node.cpu_usage && node.cpu_usage > 80 ? 'text-warning' : ''}>
+                        {node.cpu_usage ? `${node.cpu_usage.toFixed(1)}%` : 'N/A'}
+                      </td>
+                      <td className={node.load_average && node.load_average > 100 ? 'text-error' : ''}>
+                        {node.load_average ? `${node.load_average.toFixed(1)}%` : 'N/A'}
+                      </td>
+                      <td className={node.disk_usage && node.disk_usage > 80 ? 'text-error' : ''}>
+                        {node.disk_usage ? `${node.disk_usage.toFixed(1)}%` : 'N/A'}
                       </td>
                       <td>{node.last_seen || 'N/A'}</td>
                     </tr>

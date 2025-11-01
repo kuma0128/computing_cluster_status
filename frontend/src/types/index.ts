@@ -43,6 +43,14 @@ export interface ClusterOverview {
   pbs_usage: number;
 }
 
+export interface ClusterSummary {
+  name: string;
+  totalNodes: number;
+  aliveNodes: number;
+  downNodes: number;
+  availableNodes: number;
+}
+
 export interface UserUsage {
   username: string;
   cpu_cores: number;
@@ -85,6 +93,7 @@ export interface NodeDetails {
   name: string;
   status: 'up' | 'down';
   last_seen: string;
+  cpu_usage?: number;
   load_average?: number;
   disk_usage?: number;
 }
