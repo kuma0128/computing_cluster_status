@@ -1,0 +1,38 @@
+# Data files
+data/*.json
+data/*.kch
+data/*.log
+data/*.tmp*
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# PHP
+vendor/
+composer.lock
+
+# Docker
+.docker/
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Environment
+.env
+.env.local
+
+# Old legacy files (preserved for reference)
+php/index.php.old

@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: cluster_status_nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./php:/var/www/html/php:ro
+      - ./js:/var/www/html/js:ro
+      - ./css:/var/www/html/css:ro
+      - ./data:/var/www/html/data:ro
+    depends_on:
+      - php-fpm
+    networks:
+      - cluster_network
+
+  php-fpm:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: cluster_status_php
+    volumes:
+      - ./php:/var/www/html/php
+      - ./data:/var/www/html/data:ro
+    networks:
+      - cluster_network
+
+networks:
+  cluster_network:
+    driver: bridge

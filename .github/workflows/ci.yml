@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './sh'
+          ignore_paths: sh/hoge.sh
+          severity: warning
+
+  php-lint:
+    name: PHP Syntax Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ['8.1', '8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+
+      - name: Validate PHP syntax
+        run: |
+          find php -name "*.php" -print0 | xargs -0 -n1 php -l
+
+      - name: Install Composer dependencies (if composer.json exists)
+        if: fileExists('composer.json')
+        run: composer install --no-interaction --prefer-dist
+
+  json-validation:
+    name: Validate JSON files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Validate JSON
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          # Create sample data files if they don't exist
+          mkdir -p data
+          if [ ! -f data/load_average.json ]; then
+            echo '[]' > data/load_average.json
+          fi
+          # Validate all JSON files
+          find data -name "*.json" -type f -print0 | while IFS= read -r -d '' file; do
+            echo "Validating $file"
+            jq empty "$file" || exit 1
+          done
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker images
+        run: |
+          docker-compose build
+
+      - name: Test Docker Compose
+        run: |
+          docker-compose up -d
+          sleep 10
+          docker-compose ps
+          docker-compose down
