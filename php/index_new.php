@@ -5,7 +5,7 @@
   <title>計算機稼働状況</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="author" content="伊藤大晟 佐藤大和">
+  <meta name="author" content="伊藤大晟">
   <link href="../css/index.css" rel="stylesheet" type="text/css">
   <script src="../js/d3.v5.min.js"></script>
   <style>

@@ -1,0 +1,39 @@
+# PHPStan Configuration
+# Static analysis for PHP code
+
+parameters:
+    level: 8  # Maximum strictness
+    paths:
+        - php
+    excludePaths:
+        - php/old
+        - php/vendor
+
+    # Type checking
+    checkGenericClassInNonGenericObjectType: true
+    checkMissingIterableValueType: true
+    checkMissingVarTagTypehint: true
+
+    # Strict rules
+    strictRules:
+        allRules: true
+
+    # Ignore errors (use sparingly)
+    ignoreErrors:
+        # Example: ignore specific error in specific file
+        # -
+        #     message: '#Cannot access offset#'
+        #     path: php/some-file.php
+
+    # Report unused variables
+    reportUnmatchedIgnoredErrors: true
+    checkUninitializedProperties: true
+    checkMissingCallableSignature: true
+    treatPhpDocTypesAsCertain: false
+
+    # Bleeding edge features
+    # polluteScopeWithLoopInitialAssignments: false
+    # polluteScopeWithAlwaysIterableForeach: false
+
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon

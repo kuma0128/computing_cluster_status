@@ -1,0 +1,48 @@
+{
+  "name": "cluster/status-monitor",
+  "description": "Computing Cluster Status Monitor",
+  "type": "project",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "kuma0128",
+      "email": "aeoux5@gmail.com"
+    }
+  ],
+  "require": {
+    "php": ">=8.1"
+  },
+  "require-dev": {
+    "phpstan/phpstan": "^1.10",
+    "phpstan/phpstan-strict-rules": "^1.5",
+    "vimeo/psalm": "^5.18",
+    "phpunit/phpunit": "^10.5"
+  },
+  "autoload": {
+    "psr-4": {
+      "ClusterStatus\\": "php/lib/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "ClusterStatus\\Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "phpstan": "phpstan analyse --memory-limit=256M",
+    "psalm": "psalm --show-info=true",
+    "test": "phpunit",
+    "check": [
+      "@phpstan",
+      "@psalm",
+      "@test"
+    ],
+    "fix": [
+      "phpcbf"
+    ]
+  },
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true
+  }
+}

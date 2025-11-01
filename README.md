@@ -1,6 +1,15 @@
 # Computing Cluster Status Monitor
 
-ローカルネットワーク内でクラスターごとの稼働率やディスク使用率を確認できるWebアプリケーション
+ローカルネットワーク内でクラスターごとの稼働率やディスク使用率を確認できる、モダンなWebアプリケーション
+
+## ✨ 新機能 (v3.0.0)
+
+- 📊 **Per-User Breakdown Chart** - ユーザー別リソース使用率の可視化
+- 🔥 **Disk Heatmap** - ノードごとのディスク使用状況をヒートマップで表示
+- 🏗️ **モジュラーアーキテクチャ** - app.js による統合管理
+- 🔒 **Secrets管理** - sops/age による暗号化
+- 🔍 **静的解析** - PHPStan & Psalm による型安全性
+- 🚀 **段階的移行戦略** - ビルド不要 → Vite/React
 
 ## 🚀 クイックスタート
 
@@ -12,6 +21,16 @@ make install
 make dev-setup
 
 # ブラウザで http://localhost:8080 にアクセス
+```
+
+### 高度な機能を使う
+
+```bash
+# 静的解析を実行
+make static-analysis
+
+# シークレットを復号化
+make decrypt-secrets
 ```
 
 ## 📊 データフロー
@@ -32,15 +51,18 @@ make dev-setup
          │           - nodes_alive.json
          ▼           - nodes_down.json
 ┌─────────────────┐
-│  PHP API        │  /api/metrics.php
-│  (提供)         │  - ストレージ抽象化層
-└────────┬────────┘  - JSON / KyotoCabinet 対応
-         │
+│  PHP API        │  /api/metrics.php (総合)
+│  (提供)         │  /api/cluster.php (クラスタ別) ← NEW!
+└────────┬────────┘  - PHPStan/Psalm でチェック済み
+         │           - ストレージ抽象化層
+         │           - JSON / KyotoCabinet 対応
          ▼
 ┌─────────────────┐
-│  Frontend       │  php/index_new.php
-│  (描画)         │  - fetch API (jQuery不使用)
-└─────────────────┘  - D3.js による可視化
+│  Frontend       │  js/app.js (統合管理) ← NEW!
+│  (描画)         │  - ES6 modules
+└─────────────────┘  - モジュラーチャート
+                     - Per-User Breakdown ← NEW!
+                     - Disk Heatmap ← NEW!
 ```
 
 ## 🏗️ アーキテクチャ
@@ -147,6 +169,7 @@ make collect-metrics
 
 ### API エンドポイント
 
+#### メトリクスAPI
 ```bash
 # 現在のメトリクスを取得
 curl http://localhost:8080/api/metrics.php?type=current
@@ -159,6 +182,21 @@ curl http://localhost:8080/api/metrics.php?type=load
 
 # すべてのデータを取得
 curl http://localhost:8080/api/metrics.php?type=all
+```
+
+#### クラスタAPI（新規）
+```bash
+# クラスタ概要
+curl http://localhost:8080/api/cluster.php?name=asuka&type=overview
+
+# ユーザー別使用率
+curl http://localhost:8080/api/cluster.php?name=asuka&type=users
+
+# ディスク使用状況
+curl http://localhost:8080/api/cluster.php?name=asuka&type=disk
+
+# 履歴データ
+curl http://localhost:8080/api/cluster.php?name=asuka&type=history&days=7
 ```
 
 ## 🧪 テスト
@@ -175,6 +213,11 @@ make lint-php
 
 # JSON ファイルの検証
 make test-json
+
+# 静的解析（新規）
+make static-analysis  # PHPStan + Psalm
+make phpstan          # PHPStan のみ
+make psalm            # Psalm のみ
 ```
 
 ## 🔧 開発
@@ -194,6 +237,22 @@ make docker-logs
 # 再ビルド
 make docker-rebuild
 ```
+
+### シークレット管理（新規）
+
+```bash
+# シークレットの復号化
+make decrypt-secrets
+
+# シークレットの暗号化
+make encrypt-secret FILE=secrets/.env
+
+# 手動での暗号化/復号化
+sops -e secrets/.env > secrets/.env.enc
+sops -d secrets/.env.enc > secrets/.env
+```
+
+詳細は `secrets/README.md` を参照。
 
 ### ストレージバックエンドの変更
 
@@ -275,17 +334,27 @@ LOG_LEVEL=info
 4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
 5. Pull Request を作成
 
-## 📄 ライセンス
+## 📚 ドキュメント
 
-このプロジェクトは MIT ライセンスの下で公開されています。
+- [ARCHITECTURE.md](ARCHITECTURE.md) - システムアーキテクチャ
+- [ADVANCED_REFACTORING.md](docs/ADVANCED_REFACTORING.md) - 高度なリファクタリングガイド
+- [MIGRATION.md](MIGRATION.md) - 移行ガイド
+- [QUICKSTART.md](QUICKSTART.md) - クイックスタート
+- [BUGFIX_SUMMARY.md](BUGFIX_SUMMARY.md) - バグ修正サマリー
 
-## 👥 作者
+## 🔗 関連リンク
 
-- 伊藤大晟
-- 佐藤大和
+- [PHPStan Documentation](https://phpstan.org/)
+- [Psalm Documentation](https://psalm.dev/)
+- [SOPS](https://github.com/mozilla/sops)
+- [age Encryption](https://github.com/FiloSottile/age)
+- [D3.js](https://d3js.org/)
 
 ## 🙏 謝辞
 
 - D3.js - データ可視化
 - Nginx - Webサーバー
 - PHP-FPM - アプリケーションサーバー
+- PHPStan - 静的解析
+- Psalm - 型チェック
+- SOPS & age - シークレット管理

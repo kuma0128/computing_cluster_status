@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<psalm
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://getpsalm.org/schema/config"
+    xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd"
+    errorLevel="3"
+    resolveFromConfigFile="true"
+    findUnusedBaselineEntry="true"
+    findUnusedCode="true"
+    findUnusedPsalmSuppress="true"
+>
+    <projectFiles>
+        <directory name="php" />
+        <ignoreFiles>
+            <directory name="php/old" />
+            <directory name="php/vendor" />
+        </ignoreFiles>
+    </projectFiles>
+
+    <issueHandlers>
+        <!-- Suppress specific issues if needed -->
+        <!--
+        <MissingReturnType>
+            <errorLevel type="suppress">
+                <file name="php/some-file.php" />
+            </errorLevel>
+        </MissingReturnType>
+        -->
+    </issueHandlers>
+
+    <plugins>
+        <!-- Add plugins here if needed -->
+    </plugins>
+</psalm>

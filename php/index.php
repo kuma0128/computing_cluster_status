@@ -4,7 +4,7 @@
 <head>
   <title>計算機稼働状況</title>
   <!-- <meta http&#45;equiv="refresh" content="3600" > -->
-  <meta name="author" content="伊藤大晟 佐藤大和">
+  <meta name="author" content="伊藤大晟">
   <link href="./../css/index.css" rel="stylesheet" type="text/css">
   <script src="./../js/d3.v5.min.js"></script>
   <style>
@@ -16,21 +16,20 @@
     <div align="right">
       <a href="login.php" class="btn btn-border-shadow btn-border-shadow--color">Login</a>
     </div>
-    <?php include("nav.php"); ?>
+    <?php include "nav.php"; ?>
     <div class="explain">
       <p>現在の各クラスタの稼働状況</p>
       <p>1時間毎に更新されます。</p>
     </div>
     <?php
-
     $dsn = "mysql:dbname=XXXX;host=localhost";
     $user = "XXXX";
     $password = "";
     try {
-      $dbh = new PDO($dsn, $user, $password);
+        $dbh = new PDO($dsn, $user, $password);
     } catch (PDOException $e) {
-      print("Error:" . $e->getMessage());
-      die();
+        print "Error:" . $e->getMessage();
+        die();
     }
 
     $table = "XXXX";
@@ -53,15 +52,14 @@
     $table = "XXXX";
     $sql = $dbh->prepare("SELECT * FROM $table WHERE time > 100 ORDER BY time");
     $sql->execute();
-    $ary = array();
+    $ary = [];
 
     while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
-      $ary[] = array(
-        0  => $row['User'],
-        1  => (int)$row['time']
-      );
+        $ary[] = [
+            0 => $row["User"],
+            1 => (int) $row["time"],
+        ];
     }
-
     ?>
 
     <div class="mainblock">
@@ -73,8 +71,8 @@
           $table = "XXXX";
           $sql = "SELECT cluster FROM $table";
           foreach ($dbh->query($sql) as $row) {
-            print($row[0]);
-            print("<br />");
+              print $row[0];
+              print "<br />";
           }
           ?>
         </p>
@@ -91,8 +89,8 @@
               $table = "XXXX";
               $sql = "SELECT cluster FROM $table";
               foreach ($dbh->query($sql) as $row) {
-                print($row[0]);
-                print("<br />");
+                  print $row[0];
+                  print "<br />";
               }
               $dbh = null;
               $sql = null;

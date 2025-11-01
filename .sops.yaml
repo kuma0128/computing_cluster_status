@@ -1,0 +1,23 @@
+# SOPS Configuration
+# Age encryption for secrets management
+
+creation_rules:
+  # Encrypt .env files in secrets directory
+  - path_regex: secrets/.*\.env$
+    age: >-
+      age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+
+  # Encrypt JSON secrets
+  - path_regex: secrets/.*\.json$
+    age: >-
+      age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+
+  # Encrypt YAML secrets
+  - path_regex: secrets/.*\.ya?ml$
+    age: >-
+      age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+
+  # Default rule for secrets/ directory
+  - path_regex: secrets/.*
+    age: >-
+      age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p

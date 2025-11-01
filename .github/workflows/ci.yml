@@ -39,9 +39,44 @@ jobs:
         run: |
           find php -name "*.php" -print0 | xargs -0 -n1 php -l
 
-      - name: Install Composer dependencies (if composer.json exists)
-        if: fileExists('composer.json')
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-dev
+
+  phpstan:
+    name: PHPStan Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist
+
+      - name: Run PHPStan
+        run: composer run phpstan
+
+  psalm:
+    name: Psalm Type Checking
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run Psalm
+        run: composer run psalm
 
   json-validation:
     name: Validate JSON files

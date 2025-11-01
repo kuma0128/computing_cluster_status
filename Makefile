@@ -65,3 +65,34 @@ collect-metrics: ## Run metrics collection script
 dev-setup: install docker-up ## Setup development environment
 	@echo "Development environment is ready!"
 	@echo "Access the app at http://localhost:8080"
+
+# PHP Static Analysis
+phpstan: ## Run PHPStan static analysis
+	@if [ -f composer.json ]; then \
+		composer install --no-interaction --prefer-dist; \
+		composer run phpstan; \
+	else \
+		echo "composer.json not found. Run 'composer init' first."; \
+	fi
+
+psalm: ## Run Psalm type checking
+	@if [ -f composer.json ]; then \
+		composer install --no-interaction --prefer-dist; \
+		composer run psalm; \
+	else \
+		echo "composer.json not found. Run 'composer init' first."; \
+	fi
+
+static-analysis: phpstan psalm ## Run all static analysis tools
+
+# Secrets Management
+decrypt-secrets: ## Decrypt secrets using sops
+	@./scripts/decrypt-secrets.sh
+
+encrypt-secret: ## Encrypt a secret file (usage: make encrypt-secret FILE=path/to/file)
+	@if [ -z "$(FILE)" ]; then \
+		echo "Usage: make encrypt-secret FILE=path/to/file"; \
+		exit 1; \
+	fi
+	@sops -e $(FILE) > $(FILE).enc
+	@echo "Encrypted: $(FILE).enc"
