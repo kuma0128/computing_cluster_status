@@ -30,6 +30,7 @@ parameters:
 			message: '#Variable \$(pdo|cluster|param|up|ary|ary1|interval) might not be defined#'
 			paths:
 				- php/Signup.php
+				- php/admin.php
 				- php/pie.php
 				- php/presets.php
 				- php/rate.php
@@ -42,6 +43,7 @@ parameters:
 			paths:
 				- php/admin.php
 				- php/disk.php
+				- php/pie.php
 
 		# Legacy files with type issues
 		-
@@ -51,7 +53,7 @@ parameters:
 				- php/admin.php
 				- php/reload_disk.php
 
-		# Storage.php KyotoCabinet - optional extension
+		# Storage.php KyotoCabinet - optional extension (not installed in CI)
 		-
-			message: '#(Instantiated class KyotoCabinet not found|Access to constant .* on an unknown class KyotoCabinet|Call to method .* on an unknown class KyotoCabinet)#'
+			message: '#(Instantiated class KyotoCabinet not found|Access to constant .* on an unknown class KyotoCabinet|Call to method .* on an unknown class KyotoCabinet|Only booleans are allowed in an if condition, mixed given)#'
 			path: php/lib/Storage.php

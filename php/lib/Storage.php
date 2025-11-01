@@ -99,7 +99,6 @@ class JsonStorage implements StorageInterface {
 
 /**
  * KyotoCabinet storage implementation (optional)
- * @phpstan-ignore-next-line
  */
 class KyotoCabinetStorage implements StorageInterface {
     /** @var mixed KyotoCabinet instance */
@@ -110,7 +109,6 @@ class KyotoCabinetStorage implements StorageInterface {
             throw new RuntimeException('KyotoCabinet extension not loaded');
         }
 
-        /** @phpstan-ignore-next-line */
         $this->db = new KyotoCabinet();
 
         // Create directory if needed
@@ -119,7 +117,6 @@ class KyotoCabinetStorage implements StorageInterface {
             mkdir($dir, 0755, true);
         }
 
-        /** @phpstan-ignore-next-line */
         if (!$this->db->open($dbPath, KyotoCabinet::OWRITER | KyotoCabinet::OCREATE)) {
             throw new RuntimeException('Failed to open KyotoCabinet database');
         }
