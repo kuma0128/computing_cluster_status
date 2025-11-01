@@ -17,8 +17,8 @@ table="XXXX"
 user="root"
 pass=$(openssl XXXX)
 sql="select User from $table"
-users=$(mysql -u "$user" --password="$pass" "$db" -N -e "${sql}")
-users=($users)
+users_raw=$(mysql -u "$user" --password="$pass" "$db" -N -e "${sql}")
+mapfile -t users < <(echo "$users_raw")
 
 for i in $(cat /etc/hosts.equiv)
 do
@@ -41,4 +41,4 @@ done
 
 Insert=$(echo "$Insert" | rev | cut -c 2- | rev)
 Insert+=" ON DUPLICATE KEY UPDATE user = VALUES(user), time = VALUES(time);"
-result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$Insert")
+mysql -u "$user" --password="$pass" "$db" -N -e "$Insert" >/dev/null

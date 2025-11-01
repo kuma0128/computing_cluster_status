@@ -36,3 +36,19 @@ composer.lock
 
 # Old legacy files (preserved for reference)
 php/index.php.old
+
+# Frontend (Node.js)
+node_modules/
+frontend/modern/node_modules/
+frontend/modern/dist/
+php/dist/
+*.local
+.npmrc
+
+# Frontend build artifacts
+frontend/modern/dist-ssr/
+frontend/modern/.vite/
+
+# Package lock files (optional - uncomment to ignore)
+# package-lock.json
+# frontend/modern/package-lock.json

@@ -54,8 +54,20 @@ jobs:
           php-version: '8.2'
           coverage: none
 
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
       - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist
+        run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run PHPStan
         run: composer run phpstan
@@ -72,8 +84,20 @@ jobs:
           php-version: '8.2'
           coverage: none
 
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
       - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist
+        run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run Psalm
         run: composer run psalm
@@ -97,6 +121,95 @@ jobs:
             echo "Validating $file"
             jq empty "$file" || exit 1
           done
+
+  typescript-check:
+    name: TypeScript Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Cache node modules
+        uses: actions/cache@v3
+        with:
+          path: frontend/modern/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/modern/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        working-directory: frontend/modern
+        run: npm install
+
+      - name: Run TypeScript type check
+        working-directory: frontend/modern
+        run: npm run type-check
+
+  frontend-lint:
+    name: Frontend ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Cache node modules
+        uses: actions/cache@v3
+        with:
+          path: frontend/modern/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/modern/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        working-directory: frontend/modern
+        run: npm install
+
+      - name: Run ESLint
+        working-directory: frontend/modern
+        run: npm run lint
+
+  frontend-build:
+    name: Frontend Build Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Cache node modules
+        uses: actions/cache@v3
+        with:
+          path: frontend/modern/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/modern/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        working-directory: frontend/modern
+        run: npm install
+
+      - name: Build frontend
+        working-directory: frontend/modern
+        run: npm run build
+
+      - name: Check build output
+        run: |
+          if [ ! -d "php/dist" ]; then
+            echo "Build output directory not found!"
+            exit 1
+          fi
+          echo "Build successful!"
 
   docker-build:
     name: Docker Build Test

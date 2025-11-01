@@ -71,13 +71,13 @@ EOF
 EOF
   fi
   if [ "$j" = "asuka_data" ]; then
-    sudo -u guest /usr/bin/rsh asuka00 "ionice -c 3 /usr/local/bin/duc ls -b /data" >"$file"
+    sudo -u guest /usr/bin/rsh asuka00 "ionice -c 3 /usr/local/bin/duc ls -b /data" | tee "$file" >/dev/null
     sudo -u guest /usr/bin/rsh asuka00 "ionice -c 3 /usr/local/bin/duc graph /data; rcp /home/guest/duc.png fep:/home/guest/"
   elif [ "$j" = "naruko_data" ]; then
-    sudo -u guest /usr/bin/rsh naruko00 "ionice -c 3 /usr/local/bin/duc ls -b /data" >"$file"
+    sudo -u guest /usr/bin/rsh naruko00 "ionice -c 3 /usr/local/bin/duc ls -b /data" | tee "$file" >/dev/null
     sudo -u guest /usr/bin/rsh naruko00 "ionice -c 3 /usr/local/bin/duc graph /data; rcp /home/guest/duc.png fep:/home/guest/"
   else
-    sudo -u guest /usr/bin/rsh "$j" "ionice -c 3 /usr/local/bin/duc ls -b /home" >"$file"
+    sudo -u guest /usr/bin/rsh "$j" "ionice -c 3 /usr/local/bin/duc ls -b /home" | tee "$file" >/dev/null
     sudo -u guest /usr/bin/rsh "$j" "ionice -c 3 /usr/local/bin/duc graph /home; rcp /home/guest/duc.png fep:/home/guest/"
   fi
   cp /home/guest/duc.png "/home/web/html/cluster/$i"
@@ -92,5 +92,5 @@ EOF
   done
   Insert=$(echo "$Insert" | rev | cut -c 2- | rev)
   Insert+=" ON DUPLICATE KEY UPDATE User = VALUES(User), $i = VALUES($i);"
-  result=$(mysql -u root --password="$pass" "$db" -N -e "$Insert")
+  mysql -u root --password="$pass" "$db" -N -e "$Insert" >/dev/null
 done

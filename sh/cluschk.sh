@@ -13,9 +13,10 @@ table4="XXXX"
 # PBSに追加されたクラスタを追加
 sql="SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'XXXX' AND TABLE_NAME = 'XXXX'"
 result=$(mysql -u root --password="$pass" "$db" -N -e "$sql")
-declare -a ary=($result)
+declare -a ary
+mapfile -t ary < <(echo "$result")
 clus=$(echo "${ary[*]}" | awk '{print $(NF-1)}')
-nodearray=($(/opt/pbs/bin/qstat -Q | grep work | awk '{print $1}' | cut -c 6-))
+mapfile -t nodearray < <(/opt/pbs/bin/qstat -Q | grep work | awk '{print $1}' | cut -c 6-)
 # file server
 nodearray=("${nodearray[@]}" "nagara")
 nodearray=("${nodearray[@]}" "asuka_data")
@@ -51,7 +52,8 @@ trap 'rm "$file"' 0 1 2 3 15
 /opt/pbs/bin/qstat -Q | grep work | awk '{print $1}' | cut -c 6- >"$file"
 sql="SELECT cluster FROM XXXX"
 result=$(mysql -u root --password="$pass" "$db" -N -e "$sql")
-declare -a ary=($result)
+declare -a ary
+mapfile -t ary < <(echo "$result")
 n=$(expr ${#ary[@]} - 1)
 for i in $(seq 0 "$n")
 do

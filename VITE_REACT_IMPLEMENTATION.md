@@ -223,15 +223,43 @@ make frontend-build
 6. PWA対応
 7. CI/CDパイプラインへの統合
 
+## CI/CD パイプライン
+
+`.github/workflows/ci.yml` を更新し、フロントエンド関連のジョブを追加：
+
+### 全9ジョブ
+
+**バックエンド（既存）:**
+1. **ShellCheck** - シェルスクリプトの静的解析
+2. **PHP Lint** - PHP構文チェック（8.1, 8.2, 8.3）
+3. **PHPStan** - PHP静的解析（Level 8）
+4. **Psalm** - PHP型チェック（Level 3）
+5. **JSON Validation** - JSONファイルの検証
+6. **Docker Build** - Dockerビルドテスト
+
+**フロントエンド（新規追加）:**
+7. **TypeScript Type Check** - TypeScript型チェック
+8. **Frontend ESLint** - コード品質チェック
+9. **Frontend Build Test** - ビルドテスト + 成果物検証
+
+### 特徴
+
+- Node.js 18使用
+- npm installによる依存関係インストール
+- node_modulesのキャッシング
+- ビルド成果物の検証（php/dist/）
+
 ## まとめ
 
 Vite + React + TypeScript による完全なモダンフロントエンドの実装が完了しました。クラシック版とモダン版の2つのフロントエンドを選択できる柔軟な構成となっています。
 
-- ✅ ShellCheck エラー完全修正
+- ✅ ShellCheck エラー完全修正（11ファイル）
 - ✅ Vite/React プロジェクト完全セットアップ
 - ✅ 全チャートのReactコンポーネント化
-- ✅ Docker統合
-- ✅ ビルドパイプライン構築
+- ✅ Docker統合（Vite dev server追加）
+- ✅ ビルドパイプライン構築（Makefile）
+- ✅ CI/CD完全対応（9ジョブ）
+- ✅ ESLint設定追加
 - ✅ ドキュメント更新
 
 これにより、モダンな開発環境と型安全性を享受しながら、段階的に既存システムから移行できる体制が整いました。

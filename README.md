@@ -239,7 +239,31 @@ make test-json
 make static-analysis  # PHPStan + Psalm
 make phpstan          # PHPStan のみ
 make psalm            # Psalm のみ
+
+# フロントエンドのテスト（新規）
+make frontend-type-check  # TypeScript型チェック
+make frontend-lint        # ESLint
+make frontend-build       # ビルドテスト
 ```
+
+## 🔄 CI/CD
+
+GitHub Actions による自動テストパイプライン（全9ジョブ）：
+
+**バックエンド:**
+- ✅ ShellCheck - シェルスクリプト静的解析
+- ✅ PHP Lint (8.1, 8.2, 8.3) - PHP構文チェック
+- ✅ PHPStan (Level 8) - PHP静的解析
+- ✅ Psalm (Level 3) - PHP型チェック
+- ✅ JSON Validation - JSONファイル検証
+- ✅ Docker Build - Dockerビルドテスト
+
+**フロントエンド:**
+- ✅ TypeScript Type Check - 型チェック
+- ✅ Frontend ESLint - コード品質チェック
+- ✅ Frontend Build Test - ビルドテスト
+
+すべてのプッシュとプルリクエストで自動実行されます。
 
 ## 🔧 開発
 

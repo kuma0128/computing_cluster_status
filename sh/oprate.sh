@@ -34,8 +34,6 @@ for i in "${master[@]}"; do
   assign=$(grep "partition = $i" -A 2 -B 21 "$file" | grep resources_assigned.ncpus | awk '{print $3}')
   declare -a ary0
   mapfile -t ary0 < <(echo "$node")
-  declare -a ary1
-  mapfile -t ary1 < <(echo "$state")
   declare -a ary2
   mapfile -t ary2 < <(echo "$avail")
   declare -a ary3
@@ -119,6 +117,6 @@ fi
 Insert+="$tot);"
 Insertp+="$totp);"
 Insertc+="'$totcpu/$availcpu');"
-result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$Insert")
-result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$Insertp")
-result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$Insertc")
+mysql -u "$user" --password="$pass" "$db" -N -e "$Insert" >/dev/null
+mysql -u "$user" --password="$pass" "$db" -N -e "$Insertp" >/dev/null
+mysql -u "$user" --password="$pass" "$db" -N -e "$Insertc" >/dev/null
