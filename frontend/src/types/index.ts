@@ -5,11 +5,31 @@ export interface MetricsResponse {
   cpu_usage: MetricData[];
   timestamp: number;
   has_data: boolean;
+  history?: MetricHistory;
 }
 
 export interface MetricData {
   cluster: string;
   value: number;
+}
+
+export interface MetricHistory {
+  cpu_usage: TimeSeriesPoint[];
+  load_average: TimeSeriesPoint[];
+  pbs_usage: TimeSeriesPoint[];
+}
+
+export interface TimeSeriesPoint {
+  timestamp: number;
+  value: number;
+}
+
+export interface MetricStats {
+  min: number;
+  max: number;
+  avg: number;
+  p95: number;
+  change_percent: number; // Comparison with previous period
 }
 
 export interface ClusterOverview {
@@ -59,6 +79,14 @@ export interface NodeStatusResponse {
   total: number;
   has_data: boolean;
   message?: string;
+}
+
+export interface NodeDetails {
+  name: string;
+  status: 'up' | 'down';
+  last_seen: string;
+  load_average?: number;
+  disk_usage?: number;
 }
 
 // Chart Props Types

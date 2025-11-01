@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("key not found")
+	ErrNotFound    = errors.New("key not found")
 	ErrInvalidData = errors.New("invalid data format")
 )
 
