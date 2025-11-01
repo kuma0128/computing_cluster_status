@@ -53,6 +53,14 @@ export interface NodeStatus {
   load_average: number;
 }
 
+export interface NodeStatusResponse {
+  alive: string[];
+  down: string[];
+  total: number;
+  has_data: boolean;
+  message?: string;
+}
+
 // Chart Props Types
 export interface BaseChartProps {
   width?: number;

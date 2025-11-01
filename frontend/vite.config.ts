@@ -20,7 +20,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../../php/dist',
+    outDir: 'dist',
     emptyOutDir: true,
     sourcemap: true,
   },

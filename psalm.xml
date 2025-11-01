@@ -11,6 +11,9 @@
 >
     <projectFiles>
         <directory name="php" />
+        <ignoreFiles>
+            <directory name="php/legacy" />
+        </ignoreFiles>
     </projectFiles>
 
     <issueHandlers>

@@ -4,6 +4,7 @@ import type {
   UserUsage,
   DiskUsage,
   ClusterHistory,
+  NodeStatusResponse,
   APIConfig,
   CacheEntry,
 } from '../types';
@@ -85,6 +86,21 @@ export class ClusterAPI {
         cpu_usage: [],
         timestamp: Date.now(),
         has_data: false,
+      };
+    }
+  }
+
+  async fetchNodes(): Promise<NodeStatusResponse> {
+    try {
+      return await this.fetch<NodeStatusResponse>('/metrics.php', { type: 'nodes' });
+    } catch (error) {
+      console.error('Error fetching node status:', error);
+      return {
+        alive: [],
+        down: [],
+        total: 0,
+        has_data: false,
+        message: 'データ取得エラー',
       };
     }
   }

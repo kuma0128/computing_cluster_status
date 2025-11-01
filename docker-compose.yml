@@ -6,26 +6,25 @@ services:
       - "8080:80"
     volumes:
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./php:/var/www/html/php:ro
-      - ./js:/var/www/html/js:ro
-      - ./css:/var/www/html/css:ro
-      - ./data:/var/www/html/data:ro
+      - ./frontend/dist:/var/www/html/frontend/dist:ro
     depends_on:
-      - php-fpm
+      - backend
     networks:
       - cluster_network
 
-  php-fpm:
+  backend:
     build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-    container_name: cluster_status_php
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cluster_status_backend
     volumes:
-      - ./php:/var/www/html/php
-      - ./data:/var/www/html/data:ro
+      - ./data:/data
     environment:
+      - PORT=8080
       - STORAGE_TYPE=${STORAGE_TYPE:-json}
+      - STORAGE_PATH=/data
       - DB_HOST=${DB_HOST:-mysql}
+      - DB_PORT=${DB_PORT:-3306}
       - DB_NAME=${DB_NAME:-cluster_status}
       - DB_USER=${DB_USER:-cluster_user}
       - DB_PASSWORD=${DB_PASSWORD:-cluster_pass}
@@ -33,6 +32,12 @@ services:
       - mysql
     networks:
       - cluster_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   mysql:
     image: mysql:9.1
@@ -54,6 +59,7 @@ services:
       timeout: 20s
       retries: 10
 
+  # Vite development server (optional, for development only)
   vite:
     image: node:22-alpine
     container_name: cluster_status_vite
@@ -62,14 +68,32 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend/modern:/app
+      - ./frontend:/app
       - /app/node_modules
     environment:
       - NODE_ENV=development
     networks:
       - cluster_network
+    profiles:
+      - dev
     depends_on:
       - nginx
+
+  # Vite build for production (run: docker compose run vite-build)
+  vite-build:
+    image: node:22-alpine
+    container_name: cluster_status_vite_build
+    working_dir: /app
+    command: sh -c "npm install && npm run build"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=production
+    networks:
+      - cluster_network
+    profiles:
+      - build
 
 networks:
   cluster_network:

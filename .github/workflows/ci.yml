@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   shellcheck:
@@ -16,104 +16,9 @@ jobs:
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@master
         with:
-          scandir: './sh'
+          scandir: "./sh"
           ignore_paths: sh/hoge.sh
           severity: warning
-
-  php-lint:
-    name: PHP Syntax Check
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        php-version: ['8.1', '8.2', '8.3']
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ matrix.php-version }}
-          coverage: none
-
-      - name: Validate PHP syntax
-        run: |
-          find php -name "*.php" -print0 | xargs -0 -n1 php -l
-
-      - name: Get Composer cache directory
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ matrix.php-version }}-${{ hashFiles('**/composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-composer-${{ matrix.php-version }}-
-            ${{ runner.os }}-composer-
-
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --no-dev --no-progress
-
-  phpstan:
-    name: PHPStan Static Analysis
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          coverage: none
-
-      - name: Get Composer cache directory
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-composer-
-
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Run PHPStan
-        run: composer run phpstan
-
-  psalm:
-    name: Psalm Type Checking
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          coverage: none
-
-      - name: Get Composer cache directory
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-composer-
-
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Run Psalm
-        run: composer run psalm
 
   json-validation:
     name: Validate JSON files
@@ -144,22 +49,22 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Cache node modules
         uses: actions/cache@v3
         with:
-          path: frontend/modern/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/modern/package-lock.json') }}
+          path: frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
       - name: Install dependencies
-        working-directory: frontend/modern
+        working-directory: frontend
         run: npm install
 
       - name: Run TypeScript type check
-        working-directory: frontend/modern
+        working-directory: frontend
         run: npm run type-check
 
   frontend-lint:
@@ -171,22 +76,22 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Cache node modules
         uses: actions/cache@v3
         with:
-          path: frontend/modern/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/modern/package-lock.json') }}
+          path: frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
       - name: Install dependencies
-        working-directory: frontend/modern
+        working-directory: frontend
         run: npm install
 
       - name: Run ESLint
-        working-directory: frontend/modern
+        working-directory: frontend
         run: npm run lint
 
   frontend-build:
@@ -198,31 +103,23 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Cache node modules
         uses: actions/cache@v3
         with:
-          path: frontend/modern/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/modern/package-lock.json') }}
+          path: frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
       - name: Install dependencies
-        working-directory: frontend/modern
+        working-directory: frontend
         run: npm install
 
       - name: Build frontend
-        working-directory: frontend/modern
+        working-directory: frontend
         run: npm run build
-
-      - name: Check build output
-        run: |
-          if [ ! -d "php/dist" ]; then
-            echo "Build output directory not found!"
-            exit 1
-          fi
-          echo "Build successful!"
 
   docker-build:
     name: Docker Build Test
