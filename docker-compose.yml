@@ -23,8 +23,36 @@ services:
     volumes:
       - ./php:/var/www/html/php
       - ./data:/var/www/html/data:ro
+    environment:
+      - STORAGE_TYPE=${STORAGE_TYPE:-json}
+      - DB_HOST=${DB_HOST:-mysql}
+      - DB_NAME=${DB_NAME:-cluster_status}
+      - DB_USER=${DB_USER:-cluster_user}
+      - DB_PASSWORD=${DB_PASSWORD:-cluster_pass}
+    depends_on:
+      - mysql
     networks:
       - cluster_network
+
+  mysql:
+    image: mysql:8.0
+    container_name: cluster_status_mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-cluster_status}
+      - MYSQL_USER=${MYSQL_USER:-cluster_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-cluster_pass}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - cluster_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
 
   vite:
     image: node:18-alpine
@@ -46,3 +74,7 @@ services:
 networks:
   cluster_network:
     driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local

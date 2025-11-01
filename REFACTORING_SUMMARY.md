@@ -27,7 +27,7 @@ sh収集スクリプト → data/*.json → PHP API(/api/metrics) → D3描画
 - バージョン管理可能
 
 ### ✅ 3. jQuery 依存の撤去
-- `index_new.php` で jQuery を完全削除
+- `index.php` で jQuery を完全削除（モダン版に移行完了）
 - ネイティブ `fetch` API を使用
 - モダンなクラスベース設計
   - `ClusterAPI` - API通信
@@ -137,7 +137,7 @@ docker/php/Dockerfile           # PHP-FPM Dockerfile
 
 php/lib/Storage.php             # ストレージ抽象化
 php/api/metrics.php             # REST API
-php/index_new.php               # 新フロントエンド
+php/index.php                   # モダンフロントエンド
 
 sh/lib/json_writer.sh           # JSON書き込みライブラリ
 sh/collect_metrics.sh           # 堅牢化された収集スクリプト
@@ -222,7 +222,7 @@ sh/stat.sh, sh/oprate.sh など   # 旧スクリプト
 ```bash
 git pull
 make dev-setup
-open http://localhost:8080/index_new.php
+open http://localhost:8080
 ```
 
 ### 本番デプロイ
@@ -248,8 +248,8 @@ make test
    - 旧 `ping.php` などは非推奨
 
 3. **jQuery 削除**
-   - `index_new.php` は jQuery に依存しない
-   - 旧 `index.php` は互換性のため保持
+   - `index.php` は jQuery に依存しない（モダン版に完全移行済み）
+   - クラシック版は削除され、モダン版のみが残る
 
 ## 互換性
 

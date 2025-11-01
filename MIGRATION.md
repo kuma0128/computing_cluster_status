@@ -44,11 +44,12 @@
 #### 移行手順
 
 ```bash
-# 旧 index.php をバックアップ
-cp php/index.php php/index.php.old
+# 移行完了済み！
+# index.php は既にモダン版（旧 index_new.php）に置き換わっています
+# jQuery 不使用、ES6 クラス、Fetch API を使用
 
-# 新 index_new.php を使用
-mv php/index_new.php php/index.php
+# アクセス方法
+open http://localhost:8080
 ```
 
 ### 3. シェルスクリプトの堅牢化

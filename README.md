@@ -122,7 +122,7 @@ STORAGE_TYPE=kyotocabinet # KyotoCabinet使用時
 │   │   └── Storage.php # ストレージ抽象化層
 │   ├── api/            # APIエンドポイント
 │   │   └── metrics.php # メトリクスAPI
-│   └── index_new.php   # フロントエンド (jQuery不使用)
+│   └── index.php       # フロントエンド (jQuery不使用)
 ├── data/               # JSONデータ保存先
 ├── js/                 # JavaScriptライブラリ (D3.js)
 ├── css/                # スタイルシート

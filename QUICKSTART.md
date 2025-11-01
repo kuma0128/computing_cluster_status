@@ -17,7 +17,7 @@ make install
 make dev-setup
 
 # 3. ブラウザでアクセス
-open http://localhost:8080/index_new.php
+open http://localhost:8080
 ```
 
 これで完了！サンプルデータが表示されます。
@@ -54,7 +54,7 @@ computing_cluster_status/
 ├── php/                       # PHPアプリケーション
 │   ├── lib/Storage.php       # ストレージ抽象化
 │   ├── api/metrics.php       # REST API
-│   └── index_new.php         # フロントエンド
+│   └── index.php             # フロントエンド
 │
 └── docker-compose.yml         # Docker設定
 ```

@@ -48,7 +48,7 @@ class ClusterDashboardApp {
   initializeCharts() {
     // Main overview chart (if container exists)
     if (document.getElementById('barchart')) {
-      // Use existing chart implementation from index_new.php
+      // Use existing chart implementation from index.php
       console.log('Bar chart container found');
     }
 

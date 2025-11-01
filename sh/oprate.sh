@@ -29,7 +29,7 @@ mapfile -t master < <(/opt/pbs/bin/qstat -Q | grep work | awk '{print $1}' | cut
 for i in "${master[@]}"; do
   clus=$(expr "$clus" + 1)
   node=$(grep "partition = $i" -A 2 -B 21 "$file" | grep "Mom =" | awk '{print $3}')
-  state=$(grep "partition = $i" -A 2 -B 21 "$file" | grep "state =" | awk '{print $3}')
+  # state=$(grep "partition = $i" -A 2 -B 21 "$file" | grep "state =" | awk '{print $3}')
   avail=$(grep "partition = $i" -A 2 -B 21 "$file" | grep resources_available.ncpus | awk '{print $3}')
   assign=$(grep "partition = $i" -A 2 -B 21 "$file" | grep resources_assigned.ncpus | awk '{print $3}')
   declare -a ary0
