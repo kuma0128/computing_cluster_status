@@ -45,6 +45,12 @@
       <p>1時間毎に更新されます。</p>
     </div>
 
+    <!-- Warning message area -->
+    <div id="warning-message" style="display: none; background-color: #fff3cd; border: 1px solid #ffc107; padding: 15px; margin: 10px 0; border-radius: 5px;">
+      <strong>⚠️ 警告:</strong>
+      <span id="warning-text"></span>
+    </div>
+
     <div class="mainblock">
       <div class="iplist">
         <h>Down nodes</h>
@@ -70,11 +76,30 @@
       }
 
       async fetchMetrics(type = 'current') {
-        const response = await fetch(`${this.baseUrl}/metrics.php?type=${type}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        try {
+          const response = await fetch(`${this.baseUrl}/metrics.php?type=${type}`);
+          if (!response.ok) {
+            console.error(`HTTP error! status: ${response.status}`);
+            // Return empty data structure instead of throwing
+            return this.getEmptyResponse(type);
+          }
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error('Fetch error:', error);
+          return this.getEmptyResponse(type);
         }
-        return await response.json();
+      }
+
+      getEmptyResponse(type) {
+        switch(type) {
+          case 'nodes':
+            return { alive: [], down: [], total: 0, has_data: false, message: 'データ取得エラー' };
+          case 'current':
+            return { load_average: [], pbs_usage: [], cpu_usage: [], has_data: false };
+          default:
+            return [];
+        }
       }
 
       async fetchNodes() {
@@ -95,7 +120,7 @@
         d3.select(`#${this.containerId}`).selectAll("svg").remove();
       }
 
-      render(data) {
+      render(data, isDummy = false) {
         this.clear();
 
         if (!data || data.length === 0) {
@@ -104,11 +129,17 @@
           return;
         }
 
+        // Add warning if dummy data
+        if (isDummy) {
+          this.showWarning('実データが取得できていません。ダミー値を表示しています。');
+        }
+
         const dataset = data.map(d => ({
           name: d.cluster,
           load: parseFloat(d.load_average) || 0,
           pbs: parseFloat(d.pbs_usage) || 0,
-          cpu: parseFloat(d.cpu_usage) || 0
+          cpu: parseFloat(d.cpu_usage) || 0,
+          isDummy: d.is_dummy || false
         }));
 
         const y = d3.scaleBand()
@@ -202,6 +233,22 @@
           .call(d3.axisLeft(y))
           .style("font-size", "20px");
       }
+
+      showWarning(message) {
+        const warningEl = document.getElementById('warning-message');
+        const textEl = document.getElementById('warning-text');
+        if (warningEl && textEl) {
+          textEl.textContent = message;
+          warningEl.style.display = 'block';
+        }
+      }
+
+      hideWarning() {
+        const warningEl = document.getElementById('warning-message');
+        if (warningEl) {
+          warningEl.style.display = 'none';
+        }
+      }
     }
 
     // Application controller
@@ -212,51 +259,76 @@
       }
 
       async updateNodes() {
-        try {
-          const nodes = await this.api.fetchNodes();
+        const nodes = await this.api.fetchNodes();
 
-          const downEl = document.getElementById('down-nodes');
-          const aliveEl = document.getElementById('alive-nodes');
+        const downEl = document.getElementById('down-nodes');
+        const aliveEl = document.getElementById('alive-nodes');
 
-          downEl.innerHTML = nodes.down.length > 0 ? nodes.down.join('<br>') : 'なし';
-          aliveEl.innerHTML = nodes.alive.length > 0 ? nodes.alive.join('<br>') : 'なし';
-        } catch (error) {
-          console.error('Failed to fetch nodes:', error);
-          document.getElementById('down-nodes').innerHTML = 'エラー';
-          document.getElementById('alive-nodes').innerHTML = 'エラー';
+        // Show warning if no data
+        if (nodes.message && nodes.message !== 'OK') {
+          this.viz.showWarning(nodes.message);
         }
+
+        downEl.innerHTML = nodes.down && nodes.down.length > 0 ? nodes.down.join('<br>') : 'なし';
+        aliveEl.innerHTML = nodes.alive && nodes.alive.length > 0 ? nodes.alive.join('<br>') : 'なし';
       }
 
       async updateMetrics() {
-        try {
-          const metrics = await this.api.fetchMetrics('current');
+        const metrics = await this.api.fetchMetrics('current');
 
-          // Transform data for visualization
-          const clusters = {};
+        // Check if we have real data
+        const hasData = metrics.has_data !== false;
 
-          // Merge all metric types by cluster
-          (metrics.load_average || []).forEach(item => {
-            if (!clusters[item.cluster]) clusters[item.cluster] = { cluster: item.cluster };
-            clusters[item.cluster].load_average = item.value;
-          });
-
-          (metrics.pbs_usage || []).forEach(item => {
-            if (!clusters[item.cluster]) clusters[item.cluster] = { cluster: item.cluster };
-            clusters[item.cluster].pbs_usage = item.value;
-          });
-
-          (metrics.cpu_usage || []).forEach(item => {
-            if (!clusters[item.cluster]) clusters[item.cluster] = { cluster: item.cluster };
-            clusters[item.cluster].cpu_usage = item.value;
-          });
-
-          const chartData = Object.values(clusters);
-          this.viz.render(chartData);
-        } catch (error) {
-          console.error('Failed to fetch metrics:', error);
-          d3.select('#barchart')
-            .html('<div class="error-message">データの取得に失敗しました</div>');
+        if (!hasData) {
+          this.viz.showWarning('メトリクスデータが取得できていません。ダミー値を表示しています。');
+        } else {
+          this.viz.hideWarning();
         }
+
+        // Transform data for visualization
+        const clusters = {};
+
+        // Merge all metric types by cluster
+        (metrics.load_average || []).forEach(item => {
+          if (!clusters[item.cluster]) {
+            clusters[item.cluster] = {
+              cluster: item.cluster,
+              is_dummy: item.is_dummy || false
+            };
+          }
+          clusters[item.cluster].load_average = item.value;
+        });
+
+        (metrics.pbs_usage || []).forEach(item => {
+          if (!clusters[item.cluster]) {
+            clusters[item.cluster] = {
+              cluster: item.cluster,
+              is_dummy: item.is_dummy || false
+            };
+          }
+          clusters[item.cluster].pbs_usage = item.value;
+        });
+
+        (metrics.cpu_usage || []).forEach(item => {
+          if (!clusters[item.cluster]) {
+            clusters[item.cluster] = {
+              cluster: item.cluster,
+              is_dummy: item.is_dummy || false
+            };
+          }
+          clusters[item.cluster].cpu_usage = item.value;
+        });
+
+        const chartData = Object.values(clusters);
+
+        if (chartData.length === 0) {
+          d3.select('#barchart')
+            .html('<div class="error-message">データが見つかりません</div>');
+          return;
+        }
+
+        const isDummy = chartData.some(d => d.is_dummy);
+        this.viz.render(chartData, isDummy);
       }
 
       async initialize() {
