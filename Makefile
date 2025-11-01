@@ -96,3 +96,38 @@ encrypt-secret: ## Encrypt a secret file (usage: make encrypt-secret FILE=path/t
 	fi
 	@sops -e $(FILE) > $(FILE).enc
 	@echo "Encrypted: $(FILE).enc"
+
+# Frontend Development (Vite/React)
+frontend-install: ## Install frontend dependencies
+	@echo "Installing frontend dependencies..."
+	@cd frontend/modern && npm install
+
+frontend-dev: ## Start frontend development server
+	@echo "Starting Vite dev server..."
+	@cd frontend/modern && npm run dev
+
+frontend-build: ## Build frontend for production
+	@echo "Building frontend..."
+	@cd frontend/modern && npm run build
+
+frontend-type-check: ## Run TypeScript type checking
+	@echo "Type checking frontend..."
+	@cd frontend/modern && npm run type-check
+
+frontend-lint: ## Lint frontend code
+	@echo "Linting frontend..."
+	@cd frontend/modern && npm run lint
+
+frontend-clean: ## Clean frontend build artifacts
+	@echo "Cleaning frontend build artifacts..."
+	@rm -rf frontend/modern/node_modules
+	@rm -rf frontend/modern/dist
+	@rm -rf php/dist
+
+# Development with both classic and modern frontends
+dev-full: install docker-up frontend-install ## Setup full development environment
+	@echo "Full development environment is ready!"
+	@echo "Classic frontend: http://localhost:8080"
+	@echo "Modern frontend: http://localhost:3000"
+	@echo ""
+	@echo "To start Vite dev server, run: make frontend-dev"

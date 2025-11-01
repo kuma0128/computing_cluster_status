@@ -7,8 +7,8 @@
 file=$(mktemp)
 file1=$(mktemp)
 file2=$(mktemp)
-trap "rm $file $file1 $file2" 0 1 2 3 15
-sudo /opt/pbs/bin/pbsnodes -a >$file
+trap 'rm "$file" "$file1" "$file2"' 0 1 2 3 15
+sudo /opt/pbs/bin/pbsnodes -a | sudo tee "$file" >/dev/null
 # データベース引数
 user="XXXX"
 pass=$(openssl XXXX)
@@ -18,30 +18,30 @@ Insert="INSERT INTO $db.$table (node,route,work) VALUES  "
 Inflag=false
 
 # 各クラスターについてループ
-nodearray=($(/opt/pbs/bin/qstat -Q | grep work | awk '{print $1}' | cut -c 6-))
-nodearray=("${nodearray[@]}" "nagara")
+mapfile -t nodearray < <(/opt/pbs/bin/qstat -Q | grep work | awk '{print $1}' | cut -c 6-)
+nodearray+=("nagara")
 for i in "${nodearray[@]}"; do
-  clus=$(expr $clus \+ 1)
-  node=$(cat $file | grep "partition = $i" -A 2 -B 21 | grep "Mom =" | awk '{print $3}')
-  declare -a ary0=()
-  declare -a ary0=($node)
+  clus=$(expr "$clus" + 1)
+  node=$(grep "partition = $i" -A 2 -B 21 "$file" | grep "Mom =" | awk '{print $3}')
+  declare -a ary0
+  mapfile -t ary0 < <(echo "$node")
   nodes=${#ary0[*]}
-  nodes=$(expr $nodes \- 1)
+  nodes=$(expr "$nodes" - 1)
   # 各スレーブノードについてループ
-  for j in $(seq 0 $nodes); do
-    chk=$(/usr/sbin/fping -admq -t 50 -i 10 -r 1 ${ary0[$j]})
+  for j in $(seq 0 "$nodes"); do
+    chk=$(/usr/sbin/fping -admq -t 50 -i 10 -r 1 "${ary0[$j]}")
     if [ -z "$chk" ]; then
       # ダウンしているとき
       continue
     fi
-    line=$(sudo -u guest /usr/bin/rsh ${ary0[$j]} " df / /work 2>/dev/null|tail -n 2")
+    line=$(sudo -u guest /usr/bin/rsh "${ary0[$j]}" " df / /work 2>/dev/null|tail -n 2")
     if [ -z "$line" ]; then
       continue
     fi
     route=$(echo "$line" | head -n 1 | awk '{print $5}' | sed -e s/%//g)
     work=$(echo "$line" | tail -n 1 | awk '{print $5}' | sed -e s/%//g)
-    if [ $route -ge 90 ] || [ $work -ge 90 ]; then
-      echo ${ary0[$j]} >>$file2
+    if [ "$route" -ge 90 ] || [ "$work" -ge 90 ]; then
+      echo "${ary0[$j]}" >>"$file2"
       Inflag=true
       Insert+="(\"${ary0[$j]}\", $route, $work),"
     fi
@@ -51,42 +51,42 @@ done
 
 #HDD使用率がしきい値が下回った場合
 sql="SELECT node FROM $db.$table;"
-result=$(mysql -u $user --password=$pass $db -N -e "$sql")
-declare -a ary0=()
-declare -a ary0=($result)
+result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$sql")
+declare -a ary0
+mapfile -t ary0 < <(echo "$result")
 n=$(expr ${#ary0[@]} - 1)
-for i in $(seq 0 $n); do
-  chk=$(grep ${ary0[$i]} $file2)
+for i in $(seq 0 "$n"); do
+  chk=$(grep "${ary0[$i]}" "$file2")
   if [ -z "$chk" ]; then
     sql="DELETE FROM $db.$table WHERE node='${ary0[$i]}'"
-    result=$(mysql -u $user --password=$pass $db -N -e "$sql")
+    result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$sql")
   fi
 done
 
 #HDD使用率がしきい値が上回った場合
 if "${Inflag}"; then
-  Insert=$(echo $Insert | rev | cut -c 2- | rev)
+  Insert=$(echo "$Insert" | rev | cut -c 2- | rev)
   Insert+=" ON DUPLICATE KEY UPDATE node = VALUES(node), mail=b'1';"
-  result=$(mysql -u $user --password=$pass $db -N -e "$Insert")
+  result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$Insert")
 fi
 
 sql="SELECT node,route,work FROM $db.$table WHERE mail=0;"
-result=$(mysql -u $user --password=$pass $db -N -e "$sql")
+result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$sql")
 
 if [ -n "$result" ]; then
-  : >$file1
-  echo "計算機" "使用%" >>$file1
-  echo "    " "/" "/work" >>$file1
-  declare -a ary=()
-  declare -a ary=($result)
+  : >"$file1"
+  echo "計算機" "使用%" >>"$file1"
+  echo "    " "/" "/work" >>"$file1"
+  declare -a ary
+  mapfile -t ary < <(echo "$result")
   n=${#ary[@]}
-  n=$(expr $n / 3)
-  for i in $(seq 1 $n); do
-    j=$(expr 3 \* $i - 3)
-    k=$(expr 3 \* $i - 2)
-    l=$(expr 3 \* $i - 1)
-    echo "${ary[$j]} ${ary[$k]}"%" ${ary[$l]}"%" " | sed -e s/.cms.net//g >>$file1
+  n=$(expr "$n" / 3)
+  for i in $(seq 1 "$n"); do
+    j=$(expr 3 \* "$i" - 3)
+    k=$(expr 3 \* "$i" - 2)
+    l=$(expr 3 \* "$i" - 1)
+    echo "${ary[$j]} ${ary[$k]}% ${ary[$l]}%" | sed -e s/.cms.net//g >>"$file1"
   done
-  cat $file1 | column -t >/home/web/html/sh/mailnode/result
+  column -t < "$file1" >/home/web/html/sh/mailnode/result
   /home/web/html/sh/mailnode/mail.sh
 fi

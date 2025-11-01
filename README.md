@@ -9,9 +9,12 @@
 - 🏗️ **モジュラーアーキテクチャ** - app.js による統合管理
 - 🔒 **Secrets管理** - sops/age による暗号化
 - 🔍 **静的解析** - PHPStan & Psalm による型安全性
-- 🚀 **段階的移行戦略** - ビルド不要 → Vite/React
+- ⚛️ **Vite/React 実装** - モダンなフロントエンド環境（完全実装済み）
+- 🚀 **2つのフロントエンド** - クラシック版とモダン版を選択可能
 
 ## 🚀 クイックスタート
+
+### クラシック版（ビルド不要）
 
 ```bash
 # 依存関係のチェック
@@ -23,14 +26,32 @@ make dev-setup
 # ブラウザで http://localhost:8080 にアクセス
 ```
 
+### モダン版（Vite/React/TypeScript）
+
+```bash
+# フル開発環境のセットアップ
+make dev-full
+
+# Vite dev serverを起動
+make frontend-dev
+
+# ブラウザで http://localhost:3000 にアクセス
+```
+
 ### 高度な機能を使う
 
 ```bash
-# 静的解析を実行
+# 静的解析を実行（PHP）
 make static-analysis
+
+# フロントエンドの型チェック
+make frontend-type-check
 
 # シークレットを復号化
 make decrypt-secrets
+
+# フロントエンドをビルド
+make frontend-build
 ```
 
 ## 📊 データフロー

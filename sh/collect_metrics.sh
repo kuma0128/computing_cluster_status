@@ -4,7 +4,8 @@
 set -Eeuo pipefail
 
 # Configuration
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 readonly DATA_DIR="${DATA_DIR:-${SCRIPT_DIR}/../data}"
 readonly LOG_FILE="${LOG_FILE:-${DATA_DIR}/collector.log}"
 
@@ -36,8 +37,9 @@ command_exists() {
 # Validate dependencies
 validate_dependencies() {
     local missing=()
+    local required_commands=(jq)
 
-    for cmd in jq; do
+    for cmd in "${required_commands[@]}"; do
         if ! command_exists "$cmd"; then
             missing+=("$cmd")
         fi

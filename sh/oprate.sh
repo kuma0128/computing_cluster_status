@@ -6,17 +6,18 @@ time=$(date +%y-%m-%d\ %R:%S)
 cluster=$(/opt/pbs/bin/qstat -Q | grep work | awk '{print $1}' | cut -c 6- | sed -z 's/\n/,/g')
 #一時ファイルの設定
 file=$(mktemp)
-trap "rm $file" 0 1 2 3 15
-sudo /opt/pbs/bin/pbsnodes -a >$file
+trap 'rm "$file"' 0 1 2 3 15
+sudo /opt/pbs/bin/pbsnodes -a | sudo tee "$file" >/dev/null
 # データベース引数
 user="XXXX"
 pass=$(openssl XXXX)
+db="XXXX"
 table=XXXX
 tablep=XXXX
 tablec=XXXX
-Insert="INSERT INTO XXXX."$table" (time,"$cluster"total) VALUES('"$time"',"
-Insertp="INSERT INTO XXXX."$tablep" (time,"$cluster"total) VALUES('"$time"',"
-Insertc="INSERT INTO XXXX."$tablec" (time,"$cluster"total) VALUES('"$time"',"
+Insert="INSERT INTO $db.$table (time,${cluster}total) VALUES('$time',"
+Insertp="INSERT INTO $db.$tablep (time,${cluster}total) VALUES('$time',"
+Insertc="INSERT INTO $db.$tablec (time,${cluster}total) VALUES('$time',"
 
 # 各クラスターについてループ
 tot=0
@@ -24,68 +25,68 @@ totp=0
 clus=0
 availcpu=0
 totcpu=0
-master=($(/opt/pbs/bin/qstat -Q | grep work | awk '{print $1}' | cut -c 6-))
+mapfile -t master < <(/opt/pbs/bin/qstat -Q | grep work | awk '{print $1}' | cut -c 6-)
 for i in "${master[@]}"; do
-  clus=$(expr $clus \+ 1)
-  node=$(cat $file | grep "partition = $i" -A 2 -B 21 | grep "Mom =" | awk '{print $3}')
-  state=$(cat $file | grep "partition = $i" -A 2 -B 21 | grep "state =" | awk '{print $3}')
-  avail=$(cat $file | grep "partition = $i" -A 2 -B 21 | grep resources_available.ncpus | awk '{print $3}')
-  assign=$(cat $file | grep "partition = $i" -A 2 -B 21 | grep resources_assigned.ncpus | awk '{print $3}')
-  declare -a ary0=()
-  declare -a ary0=($node)
-  declare -a ary1=()
-  declare -a ary1=($state)
-  declare -a ary2=()
-  declare -a ary2=($avail)
-  declare -a ary3=()
-  declare -a ary3=($assign)
+  clus=$(expr "$clus" + 1)
+  node=$(grep "partition = $i" -A 2 -B 21 "$file" | grep "Mom =" | awk '{print $3}')
+  state=$(grep "partition = $i" -A 2 -B 21 "$file" | grep "state =" | awk '{print $3}')
+  avail=$(grep "partition = $i" -A 2 -B 21 "$file" | grep resources_available.ncpus | awk '{print $3}')
+  assign=$(grep "partition = $i" -A 2 -B 21 "$file" | grep resources_assigned.ncpus | awk '{print $3}')
+  declare -a ary0
+  mapfile -t ary0 < <(echo "$node")
+  declare -a ary1
+  mapfile -t ary1 < <(echo "$state")
+  declare -a ary2
+  mapfile -t ary2 < <(echo "$avail")
+  declare -a ary3
+  mapfile -t ary3 < <(echo "$assign")
   nodes=${#ary0[*]}
-  nodes=$(expr $nodes \- 1)
+  nodes=$(expr "$nodes" - 1)
   # 各スレーブノードについてループ
   avrg=0
   pbs=0
   nnode=1
   availsum=0
   pbst=0
-  for j in $(seq 0 $nodes); do
-  
+  for j in $(seq 0 "$nodes"); do
+
     # TCPポート枯渇対策   1m
     sleep 1m
 
     II=${i}00
-    chk2=$(/usr/sbin/fping -admq -t 50 -i 10 -r 1 $II)
+    chk2=$(/usr/sbin/fping -admq -t 50 -i 10 -r 1 "$II")
     if [ -z "$chk2" ]; then
       # 親ノードがダウンしているとき
       echo "${j} down"
       break
     fi
-    chk=$(/usr/sbin/fping -admq -t 50 -i 10 -r 1 ${ary0[$j]})
+    chk=$(/usr/sbin/fping -admq -t 50 -i 10 -r 1 "${ary0[$j]}")
     if [ -z "$chk" ]; then
       # ダウンしているとき
       echo "${j} down"
       continue
     fi
     # loadavrgの計算。直近15分以内の平均負荷。
-    nnode=$(expr $nnode \+ 1)
-    load=$(sudo -u guest /usr/bin/rsh ${ary0[$j]} uptime 2>/dev/null | awk '{print $NF}')
+    nnode=$(expr "$nnode" + 1)
+    load=$(sudo -u guest /usr/bin/rsh "${ary0[$j]}" uptime 2>/dev/null | awk '{print $NF}')
     if [ -z "$load" ]; then
       echo "${j} error"
       continue
     fi
-    avrg=$(echo "sacle=3; $avrg + $load" | bc)
-    pbs=$(expr $pbs \+ ${ary3[$j]})
-    availsum=$(expr $availsum \+ ${ary2[$j]})
+    avrg=$(echo "scale=3; $avrg + $load" | bc)
+    pbs=$(expr "$pbs" + "${ary3[$j]}")
+    availsum=$(expr "$availsum" + "${ary2[$j]}")
     # ypbindが切れている時にbindする
-    yp=$(sudo -u guest /usr/bin/rsh ${ary0[$j]} /usr/bin/ypwhich 2>/dev/null | grep ns1)
+    yp=$(sudo -u guest /usr/bin/rsh "${ary0[$j]}" /usr/bin/ypwhich 2>/dev/null | grep ns1)
     if [ -z "$yp" ]; then
-      /usr/bin/sshpass -p $(openssl rsautl -decrypt -inkey ~/.ssh/id_rsa -in ~/.ssh/password.rsa) ssh root@${ary0[$j]} "/usr/sbin/ypbind 2>/dev/null"
+      /usr/bin/sshpass -p "$(openssl rsautl -decrypt -inkey ~/.ssh/id_rsa -in ~/.ssh/password.rsa)" ssh "root@${ary0[$j]}" "/usr/sbin/ypbind 2>/dev/null"
     fi
     wait
   done
   #統計処理
   pbst=$pbs
-  totcpu=$(expr $totcpu \+ $pbs)
-  if [ $nnode -ne 0 -a ${ary2[$j]} -ne 0 -a $availsum -ne 0 ]; then
+  totcpu=$(expr "$totcpu" + "$pbs")
+  if [ "$nnode" -ne 0 ] && [ "${ary2[$j]}" -ne 0 ] && [ "$availsum" -ne 0 ]; then
     avrg=$(echo "scale=3; $avrg/$availsum*100" | bc)
     pbs=$(echo "scale=3; $pbs/$availsum*100" | bc)
   fi
@@ -103,8 +104,8 @@ for i in "${master[@]}"; do
   fi
   Insert+="$avrg,"
   Insertp+="$pbs,"
-  Insertc+="'"$pbst/$availsum"',"
-  availcpu=$(expr $availcpu \+ $availsum)
+  Insertc+="'$pbst/$availsum',"
+  availcpu=$(expr "$availcpu" + "$availsum")
 done
 # 全計算機の平均値
 if [ "$clus" -ne 0 ]; then
@@ -117,7 +118,7 @@ fi
 
 Insert+="$tot);"
 Insertp+="$totp);"
-Insertc+="'"$totcpu/$availcpu"');"
-result=$(mysql -u $user --password=$pass $db -N -e "$Insert")
-result=$(mysql -u $user --password=$pass $db -N -e "$Insertp")
-result=$(mysql -u $user --password=$pass $db -N -e "$Insertc")
+Insertc+="'$totcpu/$availcpu');"
+result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$Insert")
+result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$Insertp")
+result=$(mysql -u "$user" --password="$pass" "$db" -N -e "$Insertc")
