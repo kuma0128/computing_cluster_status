@@ -64,7 +64,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           coverage: none
 
       - name: Get Composer cache directory
@@ -94,7 +94,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           coverage: none
 
       - name: Get Composer cache directory
@@ -144,7 +144,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Cache node modules
         uses: actions/cache@v3
@@ -171,7 +171,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Cache node modules
         uses: actions/cache@v3
@@ -198,7 +198,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Cache node modules
         uses: actions/cache@v3
@@ -235,11 +235,11 @@ jobs:
 
       - name: Build Docker images
         run: |
-          docker-compose build
+          docker compose build
 
       - name: Test Docker Compose
         run: |
-          docker-compose up -d
+          docker compose up -d
           sleep 10
-          docker-compose ps
-          docker-compose down
+          docker compose ps
+          docker compose down

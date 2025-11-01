@@ -12,7 +12,6 @@
     <projectFiles>
         <directory name="php" />
         <ignoreFiles>
-            <directory name="php/old" />
             <directory name="php/vendor" />
         </ignoreFiles>
     </projectFiles>

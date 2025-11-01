@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ClusterAPI } from '../api/ClusterAPI';
 import { PerUserBreakdownChart } from './charts/PerUserBreakdownChart';
 import { DiskHeatmapChart } from './charts/DiskHeatmapChart';
@@ -12,10 +12,11 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const api = new ClusterAPI({ baseUrl: '/api' });
+  const apiRef = useRef(new ClusterAPI({ baseUrl: '/api' }));
 
   useEffect(() => {
     const fetchData = async () => {
+      const api = apiRef.current;
       try {
         setLoading(true);
         setError(null);

@@ -11,7 +11,7 @@ export interface BaseChartState {
 
 export abstract class BaseChartComponent<T> {
   protected containerRef: React.RefObject<HTMLDivElement>;
-  protected svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null;
+  protected svg: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   protected tooltip: d3.Selection<HTMLDivElement, unknown, null, undefined> | null = null;
   protected width: number;
   protected height: number;
