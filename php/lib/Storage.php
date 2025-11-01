@@ -5,10 +5,22 @@
  */
 
 interface StorageInterface {
+    /**
+     * @return array<string, mixed>|null
+     */
     public function get(string $key): ?array;
+
+    /**
+     * @param array<string, mixed> $data
+     */
     public function set(string $key, array $data): bool;
+
     public function has(string $key): bool;
     public function delete(string $key): bool;
+
+    /**
+     * @return array<int, string>
+     */
     public function list(): array;
 }
 
@@ -25,6 +37,9 @@ class JsonStorage implements StorageInterface {
         }
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function get(string $key): ?array {
         $file = $this->getFilePath($key);
         if (!file_exists($file)) {
@@ -40,6 +55,9 @@ class JsonStorage implements StorageInterface {
         return is_array($data) ? $data : null;
     }
 
+    /**
+     * @param array<string, mixed> $data
+     */
     public function set(string $key, array $data): bool {
         $file = $this->getFilePath($key);
         $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
@@ -62,11 +80,14 @@ class JsonStorage implements StorageInterface {
         return file_exists($file) ? unlink($file) : false;
     }
 
+    /**
+     * @return array<int, string>
+     */
     public function list(): array {
         $files = glob($this->dataDir . '/*.json');
         return array_map(function($file) {
             return basename($file, '.json');
-        }, $files ?: []);
+        }, $files !== false ? $files : []);
     }
 
     private function getFilePath(string $key): string {
@@ -78,17 +99,18 @@ class JsonStorage implements StorageInterface {
 
 /**
  * KyotoCabinet storage implementation (optional)
+ * @phpstan-ignore-next-line
  */
 class KyotoCabinetStorage implements StorageInterface {
+    /** @var mixed KyotoCabinet instance */
     private $db;
-    private string $dbPath;
 
     public function __construct(string $dbPath = __DIR__ . '/../../data/cluster.kch') {
         if (!extension_loaded('kyotocabinet')) {
             throw new RuntimeException('KyotoCabinet extension not loaded');
         }
 
-        $this->dbPath = $dbPath;
+        /** @phpstan-ignore-next-line */
         $this->db = new KyotoCabinet();
 
         // Create directory if needed
@@ -97,11 +119,15 @@ class KyotoCabinetStorage implements StorageInterface {
             mkdir($dir, 0755, true);
         }
 
+        /** @phpstan-ignore-next-line */
         if (!$this->db->open($dbPath, KyotoCabinet::OWRITER | KyotoCabinet::OCREATE)) {
             throw new RuntimeException('Failed to open KyotoCabinet database');
         }
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function get(string $key): ?array {
         $value = $this->db->get($key);
         if ($value === false) {
@@ -112,6 +138,9 @@ class KyotoCabinetStorage implements StorageInterface {
         return is_array($data) ? $data : null;
     }
 
+    /**
+     * @param array<string, mixed> $data
+     */
     public function set(string $key, array $data): bool {
         $json = json_encode($data, JSON_UNESCAPED_UNICODE);
         return $this->db->set($key, $json);
@@ -125,6 +154,9 @@ class KyotoCabinetStorage implements StorageInterface {
         return $this->db->remove($key);
     }
 
+    /**
+     * @return array<int, string>
+     */
     public function list(): array {
         $keys = [];
         $this->db->iterate();
@@ -145,6 +177,9 @@ class KyotoCabinetStorage implements StorageInterface {
  * Storage factory
  */
 class StorageFactory {
+    /**
+     * @param array<string, mixed> $config
+     */
     public static function create(string $type = 'json', array $config = []): StorageInterface {
         switch (strtolower($type)) {
             case 'kyotocabinet':
@@ -160,11 +195,14 @@ class StorageFactory {
     }
 
     public static function createFromEnv(): StorageInterface {
-        $type = getenv('STORAGE_TYPE') ?: 'json';
-        $path = getenv('STORAGE_PATH') ?: '';
+        $type = getenv('STORAGE_TYPE');
+        $type = ($type !== false) ? $type : 'json';
+
+        $path = getenv('STORAGE_PATH');
+        $path = ($path !== false) ? $path : '';
 
         $config = [];
-        if ($path) {
+        if ($path !== '') {
             $config['path'] = $path;
         }
 

@@ -11,9 +11,6 @@
 >
     <projectFiles>
         <directory name="php" />
-        <ignoreFiles>
-            <directory name="php/vendor" />
-        </ignoreFiles>
     </projectFiles>
 
     <issueHandlers>

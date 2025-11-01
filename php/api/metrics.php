@@ -36,22 +36,31 @@ try {
     ]);
 }
 
+/**
+ * @return array<string, mixed>
+ */
 function getCurrentMetrics(StorageInterface $storage): array {
     $metadata = $storage->get('metadata');
-    $timestamp = ($metadata && isset($metadata['timestamp'])) ? $metadata['timestamp'] : time();
+    $timestamp = ($metadata !== null && isset($metadata['timestamp'])) ? $metadata['timestamp'] : time();
+
+    $loadAverage = $storage->get('load_average');
+    $hasData = ($loadAverage !== null && count($loadAverage) > 0);
 
     return [
         'load_average' => $storage->get('load_average') ?? [],
         'pbs_usage' => $storage->get('pbs_usage') ?? [],
         'cpu_usage' => $storage->get('cpu_usage') ?? [],
         'timestamp' => $timestamp,
-        'has_data' => !empty($storage->get('load_average'))
+        'has_data' => $hasData
     ];
 }
 
+/**
+ * @return array<string, mixed>
+ */
 function getMetricsByKey(StorageInterface $storage, string $key): array {
     $data = $storage->get($key);
-    if ($data === null || empty($data)) {
+    if ($data === null || count($data) === 0) {
         return [
             'error' => 'Data not found',
             'message' => "No data available for key: {$key}",
@@ -61,6 +70,9 @@ function getMetricsByKey(StorageInterface $storage, string $key): array {
     return $data;
 }
 
+/**
+ * @return array<int, array<string, mixed>>
+ */
 function generateDummyData(string $key): array {
     // Generate dummy data when real data is not available
     $dummyClusters = ['cluster1', 'cluster2', 'cluster3'];
@@ -83,11 +95,14 @@ function generateDummyData(string $key): array {
     return $result;
 }
 
+/**
+ * @return array<string, mixed>
+ */
 function getNodeStatus(StorageInterface $storage): array {
     $alive = $storage->get('nodes_alive') ?? [];
     $down = $storage->get('nodes_down') ?? [];
 
-    $hasData = !empty($alive) || !empty($down);
+    $hasData = (count($alive) > 0) || (count($down) > 0);
 
     if (!$hasData) {
         // Return dummy data with warning
@@ -104,6 +119,9 @@ function getNodeStatus(StorageInterface $storage): array {
     ];
 }
 
+/**
+ * @return array<string, mixed>
+ */
 function getAllMetrics(StorageInterface $storage): array {
     $keys = $storage->list();
     $data = [];

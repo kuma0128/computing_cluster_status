@@ -1,0 +1,57 @@
+parameters:
+	ignoreErrors:
+		# Legacy authentication files - planned for refactoring
+		-
+			message: '#Constant (DB_PASS|DB_USER|DSN) not found#'
+			paths:
+				- php/Signin.php
+				- php/Signup.php
+				- php/admin.php
+				- php/disk.php
+				- php/pie.php
+				- php/presets.php
+				- php/rate.php
+
+		# Legacy files with missing type annotations - to be fixed gradually
+		-
+			message: '#Function h\(\) has (no return type specified|parameter \$s with no type specified)#'
+			paths:
+				- php/Signin.php
+				- php/Signup.php
+				- php/admin.php
+
+		# Legacy files with empty() usage - to be refactored
+		-
+			message: '#Construct empty\(\) is not allowed#'
+			path: php/admin.php
+
+		# Legacy files with undefined variables - needs proper initialization
+		-
+			message: '#Variable \$(pdo|cluster|param|up|ary|ary1|interval) might not be defined#'
+			paths:
+				- php/Signup.php
+				- php/pie.php
+				- php/presets.php
+				- php/rate.php
+				- php/week.php
+				- php/disk.php
+
+		# Legacy files with PDOStatement|false issues - needs proper error handling
+		-
+			message: '#(Argument of an invalid type PDOStatement\|false supplied for foreach|Cannot call method fetchAll\(\) on PDOStatement\|false)#'
+			paths:
+				- php/admin.php
+				- php/disk.php
+
+		# Legacy files with type issues
+		-
+			message: '#(Only booleans are allowed in|Parameter .* expects string, string\|false given)#'
+			paths:
+				- php/Signup.php
+				- php/admin.php
+				- php/reload_disk.php
+
+		# Storage.php KyotoCabinet - optional extension
+		-
+			message: '#(Instantiated class KyotoCabinet not found|Access to constant .* on an unknown class KyotoCabinet|Call to method .* on an unknown class KyotoCabinet)#'
+			path: php/lib/Storage.php

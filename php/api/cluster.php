@@ -84,13 +84,13 @@ function getClusterOverview(StorageInterface $storage, string $clusterName): arr
     $clusterPbs = array_values(array_filter($pbsData, fn($item) => $item['cluster'] === $clusterName));
     $clusterCpu = array_values(array_filter($cpuData, fn($item) => $item['cluster'] === $clusterName));
 
-    $hasData = !empty($clusterLoad) || !empty($clusterPbs) || !empty($clusterCpu);
+    $hasData = (count($clusterLoad) > 0) || (count($clusterPbs) > 0) || (count($clusterCpu) > 0);
 
     return [
         'name' => $clusterName,
-        'load_average' => !empty($clusterLoad) ? $clusterLoad[0]['value'] : 0,
-        'pbs_usage' => !empty($clusterPbs) ? $clusterPbs[0]['value'] : 0,
-        'cpu_usage' => !empty($clusterCpu) ? $clusterCpu[0]['value'] : '0/0',
+        'load_average' => (count($clusterLoad) > 0) ? $clusterLoad[0]['value'] : 0,
+        'pbs_usage' => (count($clusterPbs) > 0) ? $clusterPbs[0]['value'] : 0,
+        'cpu_usage' => (count($clusterCpu) > 0) ? $clusterCpu[0]['value'] : '0/0',
         'has_data' => $hasData,
         'message' => $hasData ? 'OK' : 'データが取得できていません'
     ];
@@ -107,7 +107,7 @@ function getClusterUsers(StorageInterface $storage, string $clusterName): array
 {
     $userData = $storage->get("users_{$clusterName}");
 
-    if (!$userData || empty($userData)) {
+    if ($userData === null || count($userData) === 0) {
         // Generate dummy data for demonstration
         $userData = generateDummyUserData($clusterName);
         $hasData = false;
@@ -133,7 +133,7 @@ function getClusterDisk(StorageInterface $storage, string $clusterName): array
 {
     $diskData = $storage->get("disk_{$clusterName}");
 
-    if (!$diskData || empty($diskData)) {
+    if ($diskData === null || count($diskData) === 0) {
         // Generate dummy data for demonstration
         $diskData = generateDummyDiskData($clusterName);
         $hasData = false;
@@ -162,7 +162,7 @@ function getClusterHistory(StorageInterface $storage, string $clusterName): arra
 
     $historyData = $storage->get("history_{$clusterName}_{$days}d");
 
-    if (!$historyData || empty($historyData)) {
+    if ($historyData === null || count($historyData) === 0) {
         return [
             'history' => [],
             'days' => $days,
