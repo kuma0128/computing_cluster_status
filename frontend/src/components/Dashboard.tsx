@@ -1,182 +1,601 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ClusterAPI } from '../api/ClusterAPI';
-import { PerUserBreakdownChart } from './charts/PerUserBreakdownChart';
-import { DiskHeatmapChart } from './charts/DiskHeatmapChart';
-import { NodeStatusList } from './NodeStatusList';
 import { useAuth } from '../contexts/AuthContext';
-import type { UserUsage, DiskUsage, MetricsResponse, NodeStatusResponse } from '../types';
+import { generateAllMockData } from '../utils/mockData';
+import type { MetricsResponse, NodeStatusResponse, DiskUsage } from '../types';
 import './Dashboard.css';
 
+type TimeRange = '1h' | '6h' | '24h';
+type RefreshInterval = 5 | 30 | 60;
+type NodeFilter = 'all' | 'up' | 'down';
+type DiskTab = 'total' | 'top5' | 'inode';
+
+// Set to true to use mock data for development
+const USE_MOCK_DATA = true;
+
 export function Dashboard() {
+  // State
   const [selectedCluster, setSelectedCluster] = useState<string>('asuka');
+  const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState<RefreshInterval>(60);
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [nodeStatus, setNodeStatus] = useState<NodeStatusResponse | null>(null);
-  const [userData, setUserData] = useState<UserUsage[]>([]);
   const [diskData, setDiskData] = useState<DiskUsage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [nodeFilter, setNodeFilter] = useState<NodeFilter>('all');
+  const [nodeSearch, setNodeSearch] = useState('');
+  const [diskTab, setDiskTab] = useState<DiskTab>('total');
+  const [sortColumn, setSortColumn] = useState<string>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
   const { isAuthenticated, logout } = useAuth();
-
   const apiRef = useRef(new ClusterAPI({ baseUrl: '/api' }));
+  const nodeTableRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const api = apiRef.current;
-      try {
-        setLoading(true);
-        setError(null);
+  // Fetch data
+  const fetchData = async () => {
+    try {
+      if (!loading) setLoading(true);
 
-        // Fetch general metrics and node status
-        const [metricsData, nodesData] = await Promise.all([
+      if (USE_MOCK_DATA) {
+        // Use mock data for development
+        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+        const mockData = generateAllMockData(selectedCluster);
+        setMetrics(mockData.metrics);
+        setNodeStatus(mockData.nodeStatus);
+        setDiskData(mockData.diskData);
+      } else {
+        // Use real API
+        const api = apiRef.current;
+        const [metricsData, nodesData, disk] = await Promise.all([
           api.fetchMetrics('current'),
           api.fetchNodes(),
+          api.fetchClusterDisk(selectedCluster),
         ]);
 
         setMetrics(metricsData);
         setNodeStatus(nodesData);
-
-        // Fetch cluster-specific data
-        const [users, disk] = await Promise.all([
-          api.fetchClusterUsers(selectedCluster),
-          api.fetchClusterDisk(selectedCluster),
-        ]);
-
-        setUserData(users);
         setDiskData(disk);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch data');
-      } finally {
-        setLoading(false);
       }
-    };
 
+      setLastUpdate(new Date());
+    } catch (err) {
+      console.error('Failed to fetch data:', err);
+
+      // Fallback to mock data on error
+      if (!USE_MOCK_DATA) {
+        console.log('Falling back to mock data...');
+        const mockData = generateAllMockData(selectedCluster);
+        setMetrics(mockData.metrics);
+        setNodeStatus(mockData.nodeStatus);
+        setDiskData(mockData.diskData);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
-
-    // Refresh data every 60 seconds
-    const interval = setInterval(fetchData, 60000);
-    return () => clearInterval(interval);
   }, [selectedCluster]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const interval = setInterval(fetchData, refreshInterval * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, refreshInterval, selectedCluster]);
+
+  // Computed values
+  const allNodes = useMemo(() => {
+    if (!nodeStatus) return [];
+
+    // Type guard to check if nodeStatus has details
+    const hasDetails = 'aliveDetails' in nodeStatus && 'downDetails' in nodeStatus;
+
+    if (hasDetails) {
+      const statusWithDetails = nodeStatus as NodeStatusResponse & {
+        aliveDetails: Array<{ name: string; last_seen: string }>;
+        downDetails: Array<{ name: string; last_seen: string }>;
+      };
+
+      const alive = statusWithDetails.aliveDetails.map(node => ({
+        name: node.name,
+        status: 'up' as const,
+        last_seen: node.last_seen
+      }));
+      const down = statusWithDetails.downDetails.map(node => ({
+        name: node.name,
+        status: 'down' as const,
+        last_seen: node.last_seen
+      }));
+      return [...alive, ...down];
+    } else {
+      // Fallback for API data without details
+      const alive = nodeStatus.alive.map(name => ({
+        name,
+        status: 'up' as const,
+        last_seen: 'N/A'
+      }));
+      const down = nodeStatus.down.map(name => ({
+        name,
+        status: 'down' as const,
+        last_seen: 'N/A'
+      }));
+      return [...alive, ...down];
+    }
+  }, [nodeStatus]);
+
+  const healthStatus = useMemo(() => {
+    if (!nodeStatus) return { status: 'unknown', aliveCount: 0, downCount: 0 };
+
+    const aliveCount = nodeStatus.alive.length;
+    const downCount = nodeStatus.down.length;
+    let status: 'healthy' | 'degraded' | 'down' = 'healthy';
+
+    if (downCount > 0) {
+      status = downCount > aliveCount / 2 ? 'down' : 'degraded';
+    }
+
+    return { status, aliveCount, downCount };
+  }, [nodeStatus]);
+
+  const filteredNodes = useMemo(() => {
+    let nodes = allNodes;
+
+    // Apply filter
+    if (nodeFilter === 'up') {
+      nodes = nodes.filter(n => n.status === 'up');
+    } else if (nodeFilter === 'down') {
+      nodes = nodes.filter(n => n.status === 'down');
+    }
+
+    // Apply search
+    if (nodeSearch) {
+      nodes = nodes.filter(n =>
+        n.name.toLowerCase().includes(nodeSearch.toLowerCase())
+      );
+    }
+
+    // Apply sort
+    nodes = [...nodes].sort((a, b) => {
+      let aVal: any = a[sortColumn as keyof typeof a];
+      let bVal: any = b[sortColumn as keyof typeof b];
+
+      if (aVal === undefined) aVal = '';
+      if (bVal === undefined) bVal = '';
+
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return nodes;
+  }, [allNodes, nodeFilter, nodeSearch, sortColumn, sortDirection]);
+
+  const topDiskUsage = useMemo(() => {
+    return [...diskData]
+      .sort((a, b) => b.usage_percent - a.usage_percent)
+      .slice(0, 5);
+  }, [diskData]);
+
+  // Handlers
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const scrollToNodes = (filter: NodeFilter) => {
+    setNodeFilter(filter);
+    // Use requestAnimationFrame to ensure DOM is updated
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const element = nodeTableRef.current;
+        if (element) {
+          const top = element.getBoundingClientRect().top + window.scrollY - 100; // 100px offset for header
+          window.scrollTo({ top, behavior: 'smooth' });
+        }
+      });
+    });
+  };
+
+  const exportCSV = () => {
+    const headers = ['Name', 'Status', 'Last Heartbeat'];
+    const rows = filteredNodes.map(n => [
+      n.name,
+      n.status,
+      n.last_seen || 'N/A',
+    ]);
+
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nodes-${selectedCluster}-${new Date().toISOString()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  const getProgressClass = (percent: number) => {
+    if (percent >= 90) return 'high';
+    if (percent >= 75) return 'medium';
+    return '';
+  };
 
   if (loading && !metrics) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
-  if (error && !metrics) {
-    return (
-      <div style={{ padding: '20px', color: 'red' }}>
-        <p>Error: {error}</p>
+      <div className="loading-overlay">
+        <div className="loading-spinner"></div>
       </div>
     );
   }
 
   return (
     <div className="dashboard">
-      <div className="main-container">
-        <div className="auth-section">
-          {isAuthenticated ? (
-            <button onClick={logout} className="btn btn-border-shadow btn-border-shadow--color">
-              Logout
-            </button>
-          ) : (
-            <Link to="/login" className="btn btn-border-shadow btn-border-shadow--color">
-              Login
-            </Link>
-          )}
-        </div>
+      {/* Fixed Header */}
+      <header className="dashboard-header">
+        <div className="header-content">
+          <div className="header-left">
+            <h1 className="app-title">Cluster Monitor</h1>
+          </div>
 
-        <div className="explain">
-          <p>現在の各クラスタの稼働状況</p>
-          <p>1時間毎に更新されます。</p>
-        </div>
+          <div className="header-center">
+            <div className="control-group">
+              <label className="control-label">Cluster:</label>
+              <select
+                className="select-input"
+                value={selectedCluster}
+                onChange={(e) => setSelectedCluster(e.target.value)}
+              >
+                <option value="asuka">Asuka</option>
+                <option value="naruko">Naruko</option>
+                <option value="yoyogi">Yoyogi</option>
+              </select>
+            </div>
 
-        {!metrics?.has_data && (
-          <div className="warning-message">
-            <strong>⚠️ 警告:</strong> 実データが取得できていません。ダミー値を表示しています。
+            <div className="control-group">
+              <label className="control-label">Period:</label>
+              <select
+                className="select-input"
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+              >
+                <option value="1h">1 hour</option>
+                <option value="6h">6 hours</option>
+                <option value="24h">24 hours</option>
+              </select>
+            </div>
+
+            <div className="control-group">
+              <label className="control-label">Auto refresh:</label>
+              <button
+                className={`toggle-button ${autoRefresh ? 'active' : ''}`}
+                onClick={() => setAutoRefresh(!autoRefresh)}
+              >
+                {autoRefresh ? 'ON' : 'OFF'}
+              </button>
+              {autoRefresh && (
+                <select
+                  className="select-input"
+                  value={refreshInterval}
+                  onChange={(e) => setRefreshInterval(Number(e.target.value) as RefreshInterval)}
+                >
+                  <option value={5}>5s</option>
+                  <option value={30}>30s</option>
+                  <option value={60}>60s</option>
+                </select>
+              )}
+            </div>
+          </div>
+
+          <div className="header-right">
+            {autoRefresh && loading && <div className="spinner"></div>}
+            <span className="last-update">Updated: {formatTime(lastUpdate)}</span>
+            <div className="user-menu">
+              {isAuthenticated ? (
+                <button onClick={logout}>Logout</button>
+              ) : (
+                <Link to="/login">
+                  <button>Login</button>
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="dashboard-content">
+        {/* Warning Banner */}
+        {USE_MOCK_DATA && (
+          <div className="warning-banner">
+            <span className="warning-icon">⚠️</span>
+            <span className="warning-text">
+              Development Mode: Using mock data. Set USE_MOCK_DATA to false in Dashboard.tsx to use real API.
+            </span>
+          </div>
+        )}
+        {!USE_MOCK_DATA && metrics && !metrics.has_data && (
+          <div className="warning-banner">
+            <span className="warning-icon">⚠️</span>
+            <span className="warning-text">
+              Warning: No real data available. Showing dummy values.
+            </span>
           </div>
         )}
 
-        <div className="mainblock">
-          <div className="iplist">
-            <h3>Down nodes</h3>
-            <NodeStatusList nodes={nodeStatus?.down || []} type="down" />
-          </div>
-
-          <div className="iplist">
-            <h3>Alive nodes</h3>
-            <NodeStatusList nodes={nodeStatus?.alive || []} type="alive" />
-          </div>
-
-          <div className="mainchart">
-            {metrics && metrics.load_average && metrics.pbs_usage && (
-              <PerUserBreakdownChart
-                data={userData}
-                clusterName={selectedCluster}
-                width={680}
-                height={450}
-              />
-            )}
-          </div>
-        </div>
-
-        <section className="cluster-select-section">
-          <label htmlFor="cluster-select">
-            クラスタを選択:
-          </label>
-          <select
-            id="cluster-select"
-            value={selectedCluster}
-            onChange={(e) => setSelectedCluster(e.target.value)}
+        {/* Health Overview Cards */}
+        <section className="health-overview">
+          <div
+            className="health-card"
+            onClick={() => scrollToNodes('all')}
           >
-            <option value="asuka">Asuka</option>
-            <option value="naruko">Naruko</option>
-            <option value="yoyogi">Yoyogi</option>
-          </select>
+            <div className="health-card-header">
+              <span className="health-card-title">Overall Status</span>
+              <span className={`health-badge ${healthStatus.status === 'healthy' ? 'success' : healthStatus.status === 'degraded' ? 'warning' : 'error'}`}>
+                {healthStatus.status}
+              </span>
+            </div>
+            <div className="health-value">
+              {healthStatus.aliveCount + healthStatus.downCount}
+            </div>
+            <p className="health-description">Total nodes</p>
+          </div>
+
+          <div
+            className="health-card"
+            onClick={() => scrollToNodes('up')}
+          >
+            <div className="health-card-header">
+              <span className="health-card-title">Alive Nodes</span>
+              <span className="health-badge success">UP</span>
+            </div>
+            <div className="health-value">{healthStatus.aliveCount}</div>
+            <p className="health-description">Currently running</p>
+          </div>
+
+          <div
+            className="health-card"
+            onClick={() => scrollToNodes('down')}
+          >
+            <div className="health-card-header">
+              <span className="health-card-title">Down Nodes</span>
+              <span className="health-badge error">DOWN</span>
+            </div>
+            <div className="health-value">{healthStatus.downCount}</div>
+            <p className="health-description">Needs attention</p>
+          </div>
         </section>
 
-        <section className="overview-section">
-          <h2>メトリクス概要</h2>
+        {/* Metrics Cards */}
+        <section className="metrics-section">
+          <h2 className="section-title">Key Metrics</h2>
           <div className="metrics-grid">
             <div className="metric-card">
-              <h3>CPU Usage</h3>
-              <p className="metric-value">
+              <div className="metric-header">
+                <span className="metric-title">CPU Usage</span>
+                <span
+                  className="metric-tooltip"
+                  title="Average CPU utilization across all nodes in the cluster. Values approaching 100% indicate potential resource shortage. Normal operating range is typically 60-80%. High sustained usage may require additional compute resources."
+                >
+                  ?
+                </span>
+              </div>
+              <div className="metric-value">
                 {metrics?.cpu_usage[0]?.value.toFixed(1) ?? 'N/A'}%
-              </p>
+              </div>
             </div>
+
             <div className="metric-card">
-              <h3>Load Average</h3>
-              <p className="metric-value">
+              <div className="metric-header">
+                <span className="metric-title">Load Average</span>
+                <span
+                  className="metric-tooltip"
+                  title="System load average over 1 minute. Represents the number of processes waiting for CPU time. Values higher than the number of CPU cores indicate processes are queued. For example, on a 4-core system, a value above 4.0 indicates high load conditions."
+                >
+                  ?
+                </span>
+              </div>
+              <div className="metric-value">
                 {metrics?.load_average[0]?.value.toFixed(2) ?? 'N/A'}
-              </p>
+              </div>
             </div>
+
             <div className="metric-card">
-              <h3>PBS Usage</h3>
-              <p className="metric-value">
+              <div className="metric-header">
+                <span className="metric-title">PBS Queue</span>
+                <span
+                  className="metric-tooltip"
+                  title="PBS job queue utilization. Percentage of active slots occupied by running and queued jobs. Values approaching 100% indicate queue saturation, which may result in longer wait times for new job submissions. Consider reviewing job priorities or adding resources."
+                >
+                  ?
+                </span>
+              </div>
+              <div className="metric-value">
                 {metrics?.pbs_usage[0]?.value.toFixed(1) ?? 'N/A'}%
-              </p>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="chart-section">
-          <DiskHeatmapChart
-            data={diskData}
-            clusterName={selectedCluster}
-            width={1000}
-            height={400}
-          />
-        </section>
-      </div>
+        {/* Disk Usage */}
+        <section className="disk-section">
+          <h2 className="section-title">Disk Usage</h2>
+          <div className="tabs">
+            <button
+              className={`tab ${diskTab === 'total' ? 'active' : ''}`}
+              onClick={() => setDiskTab('total')}
+            >
+              Total
+            </button>
+            <button
+              className={`tab ${diskTab === 'top5' ? 'active' : ''}`}
+              onClick={() => setDiskTab('top5')}
+            >
+              Top 5 Volumes
+            </button>
+            <button
+              className={`tab ${diskTab === 'inode' ? 'active' : ''}`}
+              onClick={() => setDiskTab('inode')}
+            >
+              Inode Usage
+            </button>
+          </div>
 
-      {loading && (
-        <div className="loading-indicator">
-          更新中...
-        </div>
-      )}
+          <div className="tab-content">
+            {diskTab === 'total' && diskData.length > 0 && (
+              <>
+                {diskData.map((disk, idx) => (
+                  <div key={`${disk.node}-${disk.mount_point}-${idx}`} className="disk-item">
+                    <div className="disk-header">
+                      <span className="disk-name">{disk.node}: {disk.mount_point}</span>
+                      <span className="disk-usage">
+                        {disk.used_gb.toFixed(1)}GB / {disk.total_gb.toFixed(1)}GB ({disk.usage_percent.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="progress-bar">
+                      <div
+                        className={`progress-fill ${getProgressClass(disk.usage_percent)}`}
+                        style={{ width: `${Math.min(disk.usage_percent, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {diskTab === 'top5' && topDiskUsage.length > 0 && (
+              <>
+                {topDiskUsage.map((disk, idx) => (
+                  <div key={`${disk.node}-${disk.mount_point}-${idx}`} className="disk-item">
+                    <div className="disk-header">
+                      <span className="disk-name">{disk.node}: {disk.mount_point}</span>
+                      <span className="disk-usage">
+                        {disk.used_gb.toFixed(1)}GB / {disk.total_gb.toFixed(1)}GB ({disk.usage_percent.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="progress-bar">
+                      <div
+                        className={`progress-fill ${getProgressClass(disk.usage_percent)}`}
+                        style={{ width: `${Math.min(disk.usage_percent, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {diskTab === 'inode' && diskData.length > 0 && (
+              <div className="empty-state">
+                <div className="empty-state-icon">📊</div>
+                <div className="empty-state-title">Inode data not available</div>
+                <p>Inode usage information is not currently tracked</p>
+              </div>
+            )}
+
+            {diskData.length === 0 && (
+              <div className="empty-state">
+                <div className="empty-state-icon">📊</div>
+                <div className="empty-state-title">No disk data available</div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Node Table */}
+        <section className="node-table-section" ref={nodeTableRef}>
+          <h2 className="section-title">Node List</h2>
+
+          <div className="table-controls">
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search nodes..."
+              value={nodeSearch}
+              onChange={(e) => setNodeSearch(e.target.value)}
+            />
+
+            <div className="filter-buttons">
+              <button
+                className={`filter-button ${nodeFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setNodeFilter('all')}
+              >
+                All ({allNodes.length})
+              </button>
+              <button
+                className={`filter-button ${nodeFilter === 'up' ? 'active' : ''}`}
+                onClick={() => setNodeFilter('up')}
+              >
+                Up ({healthStatus.aliveCount})
+              </button>
+              <button
+                className={`filter-button ${nodeFilter === 'down' ? 'active' : ''}`}
+                onClick={() => setNodeFilter('down')}
+              >
+                Down ({healthStatus.downCount})
+              </button>
+            </div>
+
+            <button className="export-button" onClick={exportCSV}>
+              Export CSV
+            </button>
+          </div>
+
+          <div className="node-table-container">
+            {filteredNodes.length > 0 ? (
+              <table className="node-table">
+                <thead>
+                  <tr>
+                    <th onClick={() => handleSort('name')}>
+                      Node Name {sortColumn === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th onClick={() => handleSort('status')}>
+                      Status {sortColumn === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th onClick={() => handleSort('last_seen')}>
+                      Last Heartbeat {sortColumn === 'last_seen' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredNodes.map((node) => (
+                    <tr key={node.name}>
+                      <td>{node.name}</td>
+                      <td>
+                        <span className={`status-badge ${node.status}`}>
+                          {node.status}
+                        </span>
+                      </td>
+                      <td>{node.last_seen || 'N/A'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-state-icon">🔍</div>
+                <div className="empty-state-title">No nodes found</div>
+                <p>Try adjusting your search or filter criteria</p>
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
