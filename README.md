@@ -222,10 +222,22 @@ curl http://localhost:8080/api/cluster.php?name=asuka&type=history&days=7
 
 ## 🧪 テスト
 
-```bash
-# すべてのテストを実行
-make test
+### すべてのチェックを実行（CI/CDと同等）
 
+```bash
+# バックエンド + フロントエンドの全チェック
+make check-all
+
+# バックエンドのみ
+make check-backend
+
+# フロントエンドのみ
+make check-frontend
+```
+
+### 個別のテスト
+
+```bash
 # Shell スクリプトのリント
 make lint-shell
 
@@ -235,16 +247,29 @@ make lint-php
 # JSON ファイルの検証
 make test-json
 
-# 静的解析（新規）
+# 静的解析（Composer必要）
 make static-analysis  # PHPStan + Psalm
 make phpstan          # PHPStan のみ
 make psalm            # Psalm のみ
 
-# フロントエンドのテスト（新規）
+# フロントエンドのテスト
 make frontend-type-check  # TypeScript型チェック
 make frontend-lint        # ESLint
 make frontend-build       # ビルドテスト
 ```
+
+### Docker経由でのチェック（Composer/Nodeなしでも可）
+
+```bash
+# PHPStan/Psalm をDockerで実行
+make docker-phpstan
+make docker-psalm
+
+# すべてのバックエンドチェックをDockerで実行
+make docker-check-backend
+```
+
+詳細は [LOCAL_CHECK.md](LOCAL_CHECK.md) を参照してください。
 
 ## 🔄 CI/CD
 

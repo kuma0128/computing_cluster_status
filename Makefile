@@ -131,3 +131,31 @@ dev-full: install docker-up frontend-install ## Setup full development environme
 	@echo "Modern frontend: http://localhost:3000"
 	@echo ""
 	@echo "To start Vite dev server, run: make frontend-dev"
+
+# Local CI checks (matches GitHub Actions)
+check-backend: lint-shell lint-php static-analysis ## Run all backend checks locally
+	@echo "All backend checks passed!"
+
+check-frontend: frontend-type-check frontend-lint frontend-build ## Run all frontend checks locally
+	@echo "All frontend checks passed!"
+
+check-all: check-backend check-frontend ## Run all CI checks locally
+	@echo "All checks passed! Ready to push."
+
+# Docker-based checks (useful when Composer/Node not installed locally)
+docker-phpstan: ## Run PHPStan via Docker
+	@docker-compose run --rm php-fpm sh -c 'composer install --no-progress && composer run phpstan'
+
+docker-psalm: ## Run Psalm via Docker
+	@docker-compose run --rm php-fpm sh -c 'composer install --no-progress && composer run psalm'
+
+docker-check-backend: ## Run all backend checks via Docker
+	@echo "Running ShellCheck..."
+	@docker run --rm -v "$$(pwd):/mnt" koalaman/shellcheck:stable sh/*.sh
+	@echo "Running PHP Lint..."
+	@docker run --rm -v "$$(pwd):/app" -w /app php:8.2-cli sh -c 'find php -name "*.php" -print0 | xargs -0 -n1 php -l'
+	@echo "Running PHPStan..."
+	@$(MAKE) docker-phpstan
+	@echo "Running Psalm..."
+	@$(MAKE) docker-psalm
+	@echo "All backend checks passed!"
